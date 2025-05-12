@@ -1,0 +1,42 @@
+.Rproj.user
+*.Rcheck
+# Don´t upload "output"-files:
+
+*.xlsx
+*.tsv 
+*.txt
+*.pdf
+*.rds
+*.fastq
+
+# Dont upload installed packages always restore from renv.lock
+renv/
+
+
+# Variant_report
+1-variants.vcf.gz
+variant_report.*
+variant_report.xlsx.counts.txt
+
+
+# Ignore the entire demux folder and its contents
+demux/
+
+# Ignore all files that start with "2-tab." (e.g., 2-tab.counts.txt)
+2-tab.*
+2-oligo_lib.tsv
+2-samples.fastq.gz
+2-samples.tsv
+
+# Ignore specific 2-BcellQC files
+2-BcellQC.qmd
+2-BcellQC.html
+2-BcellQC.rds
+2-BcellQC.knit.md
+2-BcellQC.rmarkdown
+
+# Ignore the 3-screen.pdf file
+3-screen.pdf
+
+# Results
+Antigen_workflow/pdf_outputs/

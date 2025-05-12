@@ -1,0 +1,16 @@
+^TCRFlow\.Rproj$
+^\.Rproj\.user$
+
+^doc$
+^Meta$
+^doc(s)?$
+\.gitignore
+^CHANGES\.md$
+^Makefile$$
+^README\.md$
+^CITATION$
+^_pkgdown\.yml$
+narray_[0-9.]+\.tar\.gz
+^\.github$
+^windows$
+.BiocCheck
