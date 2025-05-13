@@ -167,7 +167,7 @@ VariantProcessor <- R6Class("VariantProcessor",
     },
 
     ui = function() {
-      tabPanel("Step 1 - Variant annotation",
+      tabPanel(" Variant calling",
         sidebarLayout(
           sidebarPanel(
             width = 3,

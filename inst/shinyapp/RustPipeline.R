@@ -10,14 +10,9 @@ library(ggplot2)
 library(plotly)
 library(patchwork)
 library(crosstalk)
-library(DESeq2)
 
 # Excel
 library(readxl)  
-
-# Split string
-library (stringr)
-
 
 # Pepitope
 library(pepitope)
@@ -60,9 +55,6 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # Flatten the list structure if needed (combine lists from multiple files)
-      # Flattening the List: Flattening the list with unlist(..., recursive = FALSE) works, 
-      # but be mindful that if multiple sheets from different files have the same name, 
-      # they will overwrite each other in the flattened list.
       all_constructs <- unlist(all_constructs, recursive = FALSE)
 
       print("Show peptide table head post mod")
@@ -75,7 +67,7 @@ RustPipeline <- R6Class("RustPipeline",
 
 
     ui = function() {
-      tabPanel("Step 2 - Demux and guide-counter",
+      tabPanel("Quality control",
         sidebarLayout(
           sidebarPanel(
             width = 3,
@@ -103,6 +95,7 @@ RustPipeline <- R6Class("RustPipeline",
             
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
+            verbatimTextOutput("fastq_file_path"),
             actionButton("run_pipeline", "Run Pipeline"),
             div(id= "export_metrics", style = "display: none;",
               downloadButton("download_new_peptide_table", "Download Results: 2-all-metrics.xlsx"),
@@ -117,7 +110,7 @@ RustPipeline <- R6Class("RustPipeline",
               tabPanel("Construct Metadata", tableOutput("construct_meta_data")),
               tabPanel("Construct Counts", tableOutput("construct_counts")),
               tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
-              tabPanel("Barcode overlap", plotlyOutput("subplot_barcodes")),
+              tabPanel("Barcode overlap", plotOutput("subplot_barcodes")),
               tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
               tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
               tabPanel("Sample Correlation", plotlyOutput("subplot_plot_3"))
@@ -132,7 +125,8 @@ RustPipeline <- R6Class("RustPipeline",
       wd <- normalizePath(".")
       status_2 <- reactiveVal("Waiting for input...")
       output$status_2 <- renderText({status_2()})
-
+      output$fastq_file_path <- renderText({ fastq_file_path() })
+      
       volumes = getVolumes()
 
       shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
@@ -212,8 +206,7 @@ RustPipeline <- R6Class("RustPipeline",
         valid_barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
         print(head(valid_barcodes))
         
-        output$subplot_barcodes <- renderPlotly({
-          # Convert ggplots to plotly
+        output$subplot_barcodes <- renderPlot({
           pepitope::plot_barcode_overlap(all_constructs, valid_barcodes)
         })
 

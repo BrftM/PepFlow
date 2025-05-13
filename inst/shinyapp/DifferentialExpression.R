@@ -7,8 +7,6 @@ library(dplyr)
 ## Static plotting
 library(ggplot2)
 library(ggpp)
-## Differential expression
-library(DESeq2)
 
 ## Interactive plots
 library(plotly)
@@ -46,7 +44,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
       },
 
       ui = function() {
-          tabPanel("Step 3 - Differential Abundance",
+          tabPanel("Co-culture screen",
               sidebarLayout(
                   sidebarPanel(
                       width = 3,

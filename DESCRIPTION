@@ -13,12 +13,26 @@ Imports:
     shiny,
     shinyjs,
     shinyFiles,
-    BSgenome.Hsapiens.UCSC.hg38
+    R6,
+    readxl,
+    writexl,
+    dplyr,
+    BSgenome.Hsapiens.UCSC.hg38,
+    DT,
+    ggplot2,
+    ggpp,
+    plotly,
+    patchwork,
+    crosstalk,
+    AnnotationHub
 Suggests:
     testthat,
     roxygen2,
     devtools,
-    BiocManager
+    BiocManager,
+    rmarkdown,
+    knitr,
+    pandoc
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
