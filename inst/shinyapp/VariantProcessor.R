@@ -172,7 +172,10 @@ VariantProcessor <- R6Class("VariantProcessor",
           sidebarPanel(
             width = 3,
             fileInput("vcf_file", "Upload VCF File (.vcf.gz)", accept = ".vcf.gz"),
-            actionButton("process", "Process VCF"),
+            div(id = "run_annotation", style = "display: none;",
+                actionButton("process", "Process VCF")
+            ),
+            
             div(id = "barcode_export", style = "display: none;",
               downloadButton("download_peptide_table", "Download Peptide Table")
             ),
@@ -188,6 +191,11 @@ VariantProcessor <- R6Class("VariantProcessor",
 
     server = function(input, output) {
       output$status_1 <- renderText({ "Waiting for input..." })
+
+       observeEvent(input$vcf_file, {
+        req(input$vcf_file)
+        shinyjs::show("run_annotation")
+       })
 
       observeEvent(input$process, {
         req(input$vcf_file)
