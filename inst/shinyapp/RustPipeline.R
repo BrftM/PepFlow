@@ -3,6 +3,7 @@ library(R6)
 library(DT)
 library(shinyjs)
 library(shinyFiles)
+library(shinyalert)
 
 # Plotting dependencys
 library(dplyr)
@@ -146,6 +147,31 @@ RustPipeline <- R6Class("RustPipeline",
         input$samples_tsv$datapath
       })
 
+      observeEvent(input$samples_tsv, {
+        req(input$samples_tsv)  # Ensure file input is not NULL
+        
+        # Read the TSV file
+        samples_tsv <- read.delim(input$samples_tsv$datapath, header = TRUE, sep = "\t")
+        
+        # Define required columns
+        required_columns <- c("sample_id", "patient", "rep", "origin", "barcode")
+        
+        # Check for missing columns
+        missing_columns <- setdiff(required_columns, colnames(samples_tsv))
+    
+        if (length(missing_columns) > 0) {
+          # Log the error message and button update using runjs
+        shinyalert(
+                title = "Missing Columns!", 
+                text = paste("Error: Missing columns in samples.tsv: ", paste(missing_columns, collapse = ", ")),
+                type = "error"
+          )
+        } else {
+          # Log the success message and button update using runjs
+          runjs(paste("document.getElementById('status_2').innerText = 'File loaded successfully. All required columns are present.';"))
+        }
+      })
+
       metadata_data <- reactiveVal(data.frame(sample_id = character(), patient = character(), rep = character(), origin = character(), barcode = character(), stringsAsFactors = FALSE))
       
       observeEvent(input$add_row, {
@@ -180,7 +206,6 @@ RustPipeline <- R6Class("RustPipeline",
         if (input$metadata_option == "Upload File") {
           req(samples_tsv_path())
           samples_tsv <- samples_tsv_path()
-          output$samples_tsv_path <- renderText({ samples_tsv_path() })
         } else {
           samples_tsv <- tempfile(fileext = ".tsv")
         }

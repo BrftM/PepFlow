@@ -13,6 +13,7 @@ Imports:
     shiny,
     shinyjs,
     shinyFiles,
+    shinyalert,
     R6,
     readxl,
     writexl,
