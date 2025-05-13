@@ -81,6 +81,24 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             req(final_peptide_table_path_1())            
             
             sheet_names <- readxl::excel_sheets(final_peptide_table_path_1())
+
+            required_sheets <- c("Samples", "Construct_Metadata", "Construct_Counts")
+            missing_sheets <- setdiff(required_sheets, sheet_names)
+
+            if (length(missing_sheets) > 0) {
+                # Display an error message indicating missing sheets
+                runjs(paste("document.getElementById('status_4').innerText = 'Error missing sheet: ", paste(missing_sheets, collapse = ", "), "';", sep = ""))
+
+                # Optionally, disable or hide further controls to prevent the user from continuing with the analysis
+                runjs("document.getElementById('status_4').innerText += ', please upload a valid file sheets (Samples, Construct_Metadata, Construct_Counts)';")
+                
+                # Clear the UI selections (in case there are any selections made)
+                updateSelectInput(inputId = "ref_group", choices = NULL)
+                updateSelectInput(inputId = "comp_group", choices = NULL)
+
+                return(NULL)  # Stop further processing if sheets are missing
+            }
+
             tables_list <- lapply(sheet_names, function(sheet) {
                 readxl::read_excel(final_peptide_table_path_1(), sheet = sheet)
             })
