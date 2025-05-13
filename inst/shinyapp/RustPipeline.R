@@ -22,7 +22,8 @@ library(pepitope)
 
 RustPipeline <- R6Class("RustPipeline",
   public = list(
-    rv = reactiveValues(),    
+    # Containts rv$all_construcs
+    rv = reactiveValues(all_constructs = NULL),    
 
     prepare_peptide_table = function(peptide_table_paths) {
       print("Paths")
@@ -35,6 +36,11 @@ RustPipeline <- R6Class("RustPipeline",
           readxl::excel_sheets(path)
         }, error = function(e) {
           message("Error reading sheets from file: ", path)
+          shinyalert(
+            title = "Error reading sheets from peptide file", 
+            text = paste("Error reading sheets from peptide file: ", paste(path, collapse = ", ")),
+            type = "error"
+          )
           return(NULL)
         })
         
@@ -46,6 +52,11 @@ RustPipeline <- R6Class("RustPipeline",
             readxl::read_xlsx(path, sheet = sheet)
           }, error = function(e) {
             message("Error reading sheet: ", sheet, " from file: ", path)
+            shinyalert(
+              title = "Error reading sheets from peptide file", 
+              text = paste("Error reading sheet: ", paste(sheet, collapse = ", ")),
+              type = "error"
+          )
             return(NULL)
           })
         })
@@ -95,6 +106,7 @@ RustPipeline <- R6Class("RustPipeline",
             textInput("read_structures", "Read Structures", value = "7B+T"),
             
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
+            checkboxGroupInput("selected_tables", "Choose tables to keep:", choices = NULL),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
             actionButton("run_pipeline", "Run Pipeline"),
@@ -105,17 +117,15 @@ RustPipeline <- R6Class("RustPipeline",
           ),
           mainPanel(
             width = 9,
-            div(id = "metrics_tables", style = "display: none;",         
               tabsetPanel(
-              tabPanel("Sample Metadata", tableOutput("sample_meta_data")),
-              tabPanel("Construct Metadata", tableOutput("construct_meta_data")),
-              tabPanel("Construct Counts", tableOutput("construct_counts")),
-              tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
-              tabPanel("Barcode overlap", plotOutput("subplot_barcodes")),
-              tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
-              tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
-              tabPanel("Sample Correlation", plotlyOutput("subplot_plot_3"))
-              ),
+                tabPanel("Barcode overlap", plotOutput("subplot_barcodes")),    
+                tabPanel("Sample Metadata", tableOutput("sample_meta_data")),
+                tabPanel("Construct Metadata", tableOutput("construct_meta_data")),
+                tabPanel("Construct Counts", tableOutput("construct_counts")),
+                tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
+                tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
+                tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
+                tabPanel("Sample Correlation", plotlyOutput("subplot_plot_3"))
             ),
           )
         )
@@ -123,30 +133,17 @@ RustPipeline <- R6Class("RustPipeline",
     },
 
     server = function(input, output, session) {
-      wd <- normalizePath(".")
       status_2 <- reactiveVal("Waiting for input...")
       output$status_2 <- renderText({status_2()})
-      output$fastq_file_path <- renderText({ fastq_file_path() })
-      
-      volumes = getVolumes()
 
-      shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
-
-      fastq_file_path <- reactive({
-        req(input$fastq_file)
-        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath 
-      })
-
-      peptide_table_path <- reactive({
-          req(input$peptide_table)
-          input$peptide_table$datapath
-      })
-
+      # 1. Step: Sample-handling
+      # 1.1. get Path
       samples_tsv_path <- reactive({
         req(input$metadata_option == "Upload File")
         input$samples_tsv$datapath
       })
-
+      
+      # 1.2. Option-Upload: observe path if upload and start checks for required columns
       observeEvent(input$samples_tsv, {
         req(input$samples_tsv)  # Ensure file input is not NULL
         
@@ -166,14 +163,11 @@ RustPipeline <- R6Class("RustPipeline",
                 text = paste("Error: Missing columns in samples.tsv: ", paste(missing_columns, collapse = ", ")),
                 type = "error"
           )
-        } else {
-          # Log the success message and button update using runjs
-          runjs(paste("document.getElementById('status_2').innerText = 'File loaded successfully. All required columns are present.';"))
-        }
+        } 
       })
 
+      # 1.3. Option-Create: create sample via table 
       metadata_data <- reactiveVal(data.frame(sample_id = character(), patient = character(), rep = character(), origin = character(), barcode = character(), stringsAsFactors = FALSE))
-      
       observeEvent(input$add_row, {
         new_row <- data.frame(sample_id = input$sample_id, patient = input$patient, rep = input$rep, origin = input$origin, barcode = input$barcode, stringsAsFactors = FALSE)
         metadata_data(rbind(metadata_data(), new_row))
@@ -181,12 +175,6 @@ RustPipeline <- R6Class("RustPipeline",
           datatable(metadata_data(), editable = "cell", rownames = FALSE)
         }, server = FALSE)
       })
-
-      output$peptide_table_path <- renderText({ 
-        paths <- peptide_table_path()
-        req(paths)
-        paste(basename(paths), collapse = "\n") })
-      
       output$metadata_table <- renderDT({
         datatable(metadata_data(), editable = "cell", rownames = FALSE)
       }, server = FALSE)
@@ -200,9 +188,83 @@ RustPipeline <- R6Class("RustPipeline",
         }
       )
 
+
+      # 2. Step: Fastq-handling
+      volumes = getVolumes()
+      output$fastq_file_path <- renderText({ fastq_file_path() })
+      shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
+      fastq_file_path <- reactive({
+        req(input$fastq_file)
+        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath 
+      })
+
+
+
+      # 3. Step: Peptide-handling
+      # 3.1. get Path
+      peptide_table_path <- reactive({
+          req(input$peptide_table)
+          input$peptide_table$datapath
+      })
+
+      # 3.2. read Constructs from tables (returns structured list of peptide tables)
+      observeEvent(input$peptide_table, {
+          
+          # Errors resolved inside prepare_peptide_table
+          #### Check here which tables shall be chosen?
+          # Set all_construcs global via reative
+         self$rv$all_constructs <- rust_pipeline$prepare_peptide_table(
+            peptide_table = peptide_table_path()
+          )
+
+          table_names <- names(self$rv$all_constructs)
+          print(table_names)
+          # Show a shinyalert with a checkboxGroupInput
+          showModal(modalDialog(
+            title = "Select Tables",
+            checkboxGroupInput("selected_tables_modal", 
+                              "Choose tables to keep:", 
+                              choices = table_names, 
+                              selected = table_names),  # Preselect all tables
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton("confirm_selection", "Confirm Selection")
+            )
+          ))
+      })
+
+      observeEvent(input$confirm_selection, {
+            # Results of selection
+            selected_tables <- input$selected_tables_modal
+
+            if (length(selected_tables) > 0) {
+
+              # Build subset with the selected
+              self$rv$selected_constructs <- self$rv$all_constructs[selected_tables]
+
+              # Close the dialog
+              removeModal()
+              # Display subset
+              lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+              self$rv$valid_barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
+
+              output$subplot_barcodes <- renderPlot({
+                pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+              })
+              } else {
+              # Show an error if no tables were selected
+              shinyalert("Error", "Please select at least one table to proceed.", type = "error")
+            }
+          })
+
+      # Step 4: Run pipeline
       observeEvent(input$run_pipeline, {
         req(fastq_file_path(), peptide_table_path())
-        
+
+        # Set tables from selection
+        selected_tables <- self$rv$selected_constructs
+
+        # Check if sample was uploaded or has to be created
         if (input$metadata_option == "Upload File") {
           req(samples_tsv_path())
           samples_tsv <- samples_tsv_path()
@@ -217,32 +279,25 @@ RustPipeline <- R6Class("RustPipeline",
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
         
-        print('############################################## RESULTS #######################')
+        ### Check for results??? And alert if someting is missing?
         print(list.files(tmp_dir, pattern="\\.fq\\.gz$"))
+        result_files = list.files(tmp_dir, pattern="\\.fq\\.gz$")
         print("All files")
         print(list.files(tmp_dir))
-
-        # Step 3: Prepare peptide table
-        all_constructs <- rust_pipeline$prepare_peptide_table(
-          peptide_table = peptide_table_path()
-        )
-        #lib = "test.txt"
-        lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
-        valid_barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
-        print(head(valid_barcodes))
-        
-        output$subplot_barcodes <- renderPlot({
-          pepitope::plot_barcode_overlap(all_constructs, valid_barcodes)
-        })
-
-       
+        shinyalert(
+                title = "demux resulted in nice files", 
+                text = paste("Counted files \\.fq\\.gz: ", paste(result_files, collapse = ", ")),
+                type = "success"
+          )
+      
 
 
         #valid_barcodes = readr::read_tsv("test.txt", col_names=FALSE)
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
+
         ###  all_constructs = list(my_bc_type = my_data_frame)
-        dset <- pepitope::count_bc(tmp_dir, all_constructs, valid_barcodes)
+        dset <- pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
 
         # colData(dset) – access the sample metadata as data.frame
         # rowData(dset) – access the construct metadata as data.frame
@@ -313,7 +368,12 @@ RustPipeline <- R6Class("RustPipeline",
 
         # Show display tabs when all the plots are done not before
         shinyjs::show("export_metrics")
-        shinyjs::show("metrics_tables")
+        #shinyjs::show("metrics_tables")
+        shinyalert(
+                title = "Count completed", 
+                text = paste("Have fun checking the results! "),
+                type = "success"
+        )
 
         output$download_new_peptide_table <- downloadHandler(
           filename = function() {

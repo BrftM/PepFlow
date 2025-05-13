@@ -29,12 +29,13 @@ VariantProcessor <- R6Class("VariantProcessor",
     },
 
     process_vcf = function(vcf_file) {
-      runjs("document.getElementById('status_1').innerText = 'Step 2/11 - Pepitope library...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 1/11 - Read VcF as VRanges...';")
+
 
       vr1 <- pepitope::readVcfAsVRanges(vcf_file) |>
         pepitope::filter_variants(min_cov=2, min_af=0.05, pass=TRUE, chrs="default")
 
-      runjs("document.getElementById('status_1').innerText = 'Step 3/11 - Annotate coding...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 2/11 - Annotate coding...';")
       ann <- pepitope::annotate_coding(vr1, self$ens106, self$asm)  
 
       runjs("document.getElementById('status_1').innerText = 'Step 4/11 - Subset context...';")
@@ -52,7 +53,11 @@ VariantProcessor <- R6Class("VariantProcessor",
         pepitope::make_report(vars=ann, subs=subs, tiled=tiled)
       }, error = function(e) {
         warning(paste("Error in make_report:", e$message))
-        showNotification("Error: Failed to generate report.", type = "error")
+          shinyalert(
+                title = "Failed to generate report!", 
+                text = paste("Error: Failed to generate report: ", paste(e$message)),
+                type = "error"
+          )
         return(NULL)
       })
 
@@ -202,6 +207,11 @@ VariantProcessor <- R6Class("VariantProcessor",
 
         runjs("document.getElementById('status_1').innerText = 'Step 11/11 - Processing VCF file...';")
         self$process_vcf(input$vcf_file$datapath)
+        shinyalert(
+            title = "Count completed", 
+            text = paste("Have fun checking the results! "),
+            type = "success"
+        )
         self$display_table(output, input)
       })
       
