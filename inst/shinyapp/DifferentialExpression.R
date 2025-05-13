@@ -91,7 +91,11 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
                 # Optionally, disable or hide further controls to prevent the user from continuing with the analysis
                 runjs("document.getElementById('status_4').innerText += ', please upload a valid file sheets (Samples, Construct_Metadata, Construct_Counts)';")
-                
+                    shinyalert(
+                            title = "Missing Sheet(s)!", 
+                            text = paste("Error missing sheet in all-metrics file: ", paste(missing_sheets, collapse = ", ")),
+                            type = "error"
+                    )
                 # Clear the UI selections (in case there are any selections made)
                 updateSelectInput(inputId = "ref_group", choices = NULL)
                 updateSelectInput(inputId = "comp_group", choices = NULL)
