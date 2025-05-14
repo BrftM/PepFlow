@@ -1,5 +1,5 @@
 
-# TCRFlow
+# PepFlow
 
 TCRFlow is an R package designed to facilitate peptide-TCR screening workflows, leveraging the **pepitope** library by Michael Schubert. The package includes a Shiny-based graphical interface for data analysis and visualization.
 
@@ -13,7 +13,7 @@ Before running the application for the first time, make sure to complete the set
 
 ### **Step 1: Download the Repository**
 You can download the package from the GitHub repository:
-[TCRFlow GitHub](https://github.com/BrftM/prototype_shiny_R/archive/refs/heads/main.zip)
+[PepFlow GitHub](https://github.com/BrftM/PepFlow/archive/refs/heads/main.zip)
 
 ---
 
@@ -35,17 +35,17 @@ if (!requireNamespace("devtools", quietly = TRUE)) {
 
 ### Choose the most suitable option for you
 # Option 1: Installation from ZIP file
-install.packages("C:/Users/username/Downloads/TCRFlow.zip", repos = NULL, type = "source")
+install.packages("C:/Users/username/Downloads/PepFlow.zip", repos = NULL, type = "source")
 
 # Option 2: Installation via RStudio GUI
-## Tools -> Install Packages -> Install from: Package Archive File (.tar.gz, .zip) -> choose TCRFlow.zip -> Install
+## Tools -> Install Packages -> Install from: Package Archive File (.tar.gz, .zip) -> choose PepFlow.zip -> Install
 
 # Option 3: Installation from GitHub in the same way as pepitope
-devtools::install_github("BrftM/TCRFlow", dependencies = TRUE)
+devtools::install_github("BrftM/PepFlow", dependencies = TRUE)
 
 
 # Load package
-library(TCRFlow)
+library(PepFlow)
 
 # Start app
 runShinyApp()
@@ -61,19 +61,22 @@ The function `runShinyApp()` will locate the app regardless of your current work
 
 However, if you are developing or testing the app directly from the source (without installation), ensure your working directory is set to the package root:
 ```r
-setwd("path/to/TCRFlow")
+setwd("path/to/PepFlow")
 ```
 
 
 ```r
 # Required packages for shiny (not automatically installed with pepitope)
-install.packages(c("shiny", "shinyjs", "shinyFiles"))
+install.packages(c("shiny","shinyjs","shinyFiles","shinyalert","R6","readxl",
+"writexl","dplyr","BSgenome.Hsapiens.UCSC","DT","ggplot2","ggpp",
+"plotly","patchwork","crosstalk"))
 
 # Install Bioconductor package BSgenome
 if (!requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
 }
-BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")
+BiocManager::install(c("AnnotationHub","BSgenome.Hsapiens.UCSC.hg38"))
+
 
 # Run the Shiny app from the local directory (development only)
 shiny::runApp("inst/shinyapp")
@@ -86,8 +89,8 @@ shiny::runApp("inst/shinyapp")
 
 After completing the setup, you can start the Shiny app from **any directory** with:
 ```r
-library(TCRFlow)
+library(PepFlow)
 runShinyApp()
 ```
 
-Enjoy exploring TCR-peptide interactions with TCRFlow!
+Enjoy exploring TCR-peptide interactions with PepFlow!
