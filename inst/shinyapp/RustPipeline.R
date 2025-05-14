@@ -249,6 +249,7 @@ RustPipeline <- R6Class("RustPipeline",
               self$rv$valid_barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
 
               output$subplot_barcodes <- renderPlot({
+                print(names(self$rv$selected_constructs))
                 pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
               })
               } else {
@@ -295,9 +296,23 @@ RustPipeline <- R6Class("RustPipeline",
         #valid_barcodes = readr::read_tsv("test.txt", col_names=FALSE)
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
-
-        ###  all_constructs = list(my_bc_type = my_data_frame)
-        dset <- pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
+        dset <- tryCatch({
+          ###  all_constructs = list(my_bc_type = my_data_frame)
+          dset <- pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
+                  shinyalert(
+                  title = "demux resulted in nice files", 
+                  text = paste("Counted files: ", paste(result_files, collapse = ", ")),
+                  type = "success"
+          )
+        }, error = function(e) {
+            # Handle the error gracefully
+            shinyalert(
+              title = "Error",
+              text = paste("An error occurred: ", e$message),
+              type = "error"
+            )
+            return(NULL)  # Return NULL in case of error
+          })
 
         # colData(dset) – access the sample metadata as data.frame
         # rowData(dset) – access the construct metadata as data.frame
