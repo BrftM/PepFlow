@@ -210,6 +210,7 @@ RustPipeline <- R6Class("RustPipeline",
 
       # 3.2. read Constructs from tables (returns structured list of peptide tables)
       observeEvent(input$peptide_table, {
+
           showModal(modalDialog(
             title = "Choose an Option",
             radioButtons( 

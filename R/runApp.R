@@ -2,7 +2,7 @@
 #'
 #' @export
 runShinyApp <- function() {
-  appDir <- system.file("shinyapp", package = "TCRFlow")
+  appDir <- system.file("shinyapp", package = "PepFlow")
   if (appDir == "") {
     stop("The App couldn´t be located. Please install the package another time.", call. = FALSE)
   }
