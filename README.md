@@ -80,6 +80,13 @@ BiocManager::install(c("AnnotationHub","BSgenome.Hsapiens.UCSC.hg38"))
 
 # Run the Shiny app from the local directory (development only)
 shiny::runApp("inst/shinyapp")
+
+# For build choose
+devtools::build()       # Builds the Package
+devtools::install()     # Install Package
+
+library(PepFlow)        # Import library
+runShinyApp()           # Run app 
 ```
 </details>
 

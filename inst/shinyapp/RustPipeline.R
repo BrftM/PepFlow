@@ -82,6 +82,7 @@ RustPipeline <- R6Class("RustPipeline",
           sidebarPanel(
             width = 3,
             useShinyjs(),  # Include ShinyJS
+            tags$h4("1. Metadata-section"),
             radioButtons("metadata_option", "Sample Metadata Source:", choices = c("Upload File", "Create Manually")),
             conditionalPanel(
               condition = "input.metadata_option == 'Upload File'",
@@ -100,13 +101,14 @@ RustPipeline <- R6Class("RustPipeline",
               downloadButton("export_table", "Export Table")
             ),
 
+            tags$h4("2. Peptide-table-section"),
             checkboxGroupInput("selected_tables", "", choices = NULL), 
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
             div(id= "show_edit_sheets", style = "display: none;",
               actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
             ),
-            tags$hr(),
 
+            tags$h4("3. Fastq-section"),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
             textInput("read_structures", "Read Structures", value = "7B+T"),
@@ -244,13 +246,19 @@ RustPipeline <- R6Class("RustPipeline",
         showModal(modalDialog(
           title = "Edit Sheets and Reverse Complement",
           tagList(
-            checkboxGroupInput("modal_selected_sheets", "Select Sheets to Use:", 
+            tags$h4("1. Select Sheets to Use"),
+            checkboxGroupInput("modal_selected_sheets", NULL, 
                               choices = sheet_names, 
-                              selected = selected_sheets()),
-            lapply(sheet_names, function(sheet) {
-              checkboxInput(paste0("rev_", sheet), paste("Reverse Complement for", sheet), 
-                            value = reverse_flags()[[sheet]] %||% FALSE)
-            })
+                              selected = sheet_names),
+            
+            tags$hr(),
+            tags$h4("2. Reverse Complement Options"),
+            div(
+              lapply(sheet_names, function(sheet) {
+                checkboxInput(paste0("rev_", sheet), paste("Reverse Complement for", sheet), 
+                              value = reverse_flags()[[sheet]] %||% FALSE)
+              })
+            )
           ),
           footer = tagList(
             modalButton("Cancel"),
@@ -260,6 +268,7 @@ RustPipeline <- R6Class("RustPipeline",
           easyClose = FALSE
         ))
       })
+
 
 
       # 3.2. 
@@ -402,20 +411,12 @@ RustPipeline <- R6Class("RustPipeline",
           head(construct_meta_data, 50) 
         })
 
-        # Add rownames = barcodes to count matrix
-        construct_counts <- as.data.frame(assay(dset))
-
-        # Only add barcode column if rownames are not already in the data
-        if (!"barcode" %in% colnames(construct_counts)) {
-          construct_counts <- construct_counts |>
-            mutate(barcode = rownames(dset)) |>
-            dplyr::select(barcode, everything())
-        }
 
         output$construct_counts <- renderTable({
           df <- as.data.frame(assay(dset))
           df$Total <- rowSums(df)  # assuming numeric values
           df <- df[order(-df$Total), ]  # descending sort
+          df <- tibble::rownames_to_column(df, var = "barcode")
           head(df, 50)
         })
 
@@ -484,7 +485,7 @@ RustPipeline <- R6Class("RustPipeline",
             construct_counts <- as.data.frame(assay(dset))
       
             # Include row names in the Construct Counts data
-            construct_counts <- tibble::rownames_to_column(construct_counts, var = "Barcode")
+            construct_counts <- tibble::rownames_to_column(construct_counts, var = "barcode")
 
             # Combine data into a list of data frames, named as the sheet names
             data_list <- list(
