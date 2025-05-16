@@ -136,9 +136,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 runjs("document.getElementById('status_4').innerText = 'Need at least two distinct groups in origin or short to compare.';")
             
                 return(NULL)
-                # Use 'short' for grouping
-                #updateSelectInput(inputId = "ref_group", choices = short, selected = short[1])
-                #updateSelectInput(inputId = "comp_group", choices = short, selected = short[2])
             
             } else {
                 # Use 'origin' for grouping
