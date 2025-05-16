@@ -4,6 +4,8 @@ library(shiny)
 # Read xlsx file
 library(readxl)
 
+library(SummarizedExperiment)
+
 # Define the Test class
 DataHandling <- R6Class("DataHandling",
     public = list(
@@ -27,17 +29,22 @@ DataHandling <- R6Class("DataHandling",
 
     #' @return Dataframe List
     transform_xlsx = function(table_path) {
-        required_sheets <- c("Samples", "Construct_Metadata", "Construct_Counts")
-        sheet_names <- readxl::excel_sheets(table_path)
+        
+        samples_df <- as.data.frame(
+            readxl::read_excel(table_path, sheet = "Samples", col_types = "text")
+        )
 
-        tables_list <- lapply(sheet_names, function(sheet) {
-            readxl::read_excel(table_path, sheet = sheet)
-        })
-        names(tables_list) <- sheet_names
+        # Read "Construct_Metadata" and "Construct_Counts" with default guessing (numeric when possible)
+        df1 <- suppressWarnings(
+            readxl::read_excel(table_path, sheet = "Construct_Metadata")
+        )
+        construct_metadata_df <- as.data.frame(df1)
+        
+        df2 <- suppressWarnings(
+            readxl::read_excel(table_path, sheet = "Construct_Counts")
+        )
+        counts_df <- as.data.frame(df2)
 
-        samples_df <- as.data.frame(tables_list[["Samples"]])
-        construct_metadata_df <- as.data.frame(tables_list[["Construct_Metadata"]])
-        counts_df <- as.data.frame(tables_list[["Construct_Counts"]])
 
         # Set first column as rownames then delet first column
         rownames(counts_df) <- counts_df[, 1]

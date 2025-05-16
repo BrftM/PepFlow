@@ -25,7 +25,8 @@ Imports:
     plotly,
     patchwork,
     crosstalk,
-    AnnotationHub
+    AnnotationHub,
+    SummarizedExperiment
 Suggests:
     testthat,
     roxygen2,

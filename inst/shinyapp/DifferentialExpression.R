@@ -35,9 +35,23 @@ DifferentialExpression <- R6Class("DifferentialExpression",
         cfg <- list(c(comp_group, ref_group))
 
         runjs("document.getElementById('status_4').innerText = 'Step 3/9 - Perform diff_expr';")
+        
+        res <- tryCatch({
+            # Attempt to run the function
+            print(length(unique(dset$patient)))
 
-        res = pepitope::screen_calc(dset, cfg)
-
+            pepitope::screen_calc(dset, cfg)
+        }, error = function(e) {
+            # Show the error to the user via shinyalert
+            shinyalert(
+                title = "Error",
+                text = paste("An error occurred:", e$message),
+                type = "error"
+            )
+        # Return NULL (or another fallback value)
+        return(NULL)
+        })
+        
         runjs("document.getElementById('status_4').innerText = 'Step 4/9 - Export 3-screen.pdf...';")
                 
         return(list(res = res, cfg=cfg))
@@ -79,9 +93,9 @@ DifferentialExpression <- R6Class("DifferentialExpression",
         
         observeEvent(input$final_peptide_table_1, {
             req(final_peptide_table_path_1())            
-            
+        
             sheet_names <- readxl::excel_sheets(final_peptide_table_path_1())
-
+           
             required_sheets <- c("Samples", "Construct_Metadata", "Construct_Counts")
             missing_sheets <- setdiff(required_sheets, sheet_names)
 
@@ -103,26 +117,35 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 return(NULL)  # Stop further processing if sheets are missing
             }
 
-            tables_list <- lapply(sheet_names, function(sheet) {
-                readxl::read_excel(final_peptide_table_path_1(), sheet = sheet)
-            })
-            names(tables_list) <- sheet_names
-            samples_df <- as.data.frame(tables_list[["Samples"]])
+            samples_df <- as.data.frame(
+                readxl::read_excel(final_peptide_table_path_1(), sheet = "Samples", col_types = "text")
+            )
 
-            
-            # Extract and set dropdown choices
-            samples <- as.data.frame(samples_df)
-            #origins <- unique(make.names(samples$origin))
-            origins <- unique(samples$origin)
+
+
+            origins <- unique(samples_df$origin)
+            print("ORIGINS")
             print(origins)
-
+            
             if (length(origins) <= 2) {
-                runjs("document.getElementById('status_4').innerText = 'Need at least two distinct groups in 'origin' to compare.';")
+                shinyalert(
+                        title = "Not enough origins!", 
+                        text = paste("Error missing distinct groups in 'origin' only one available: ", paste(origins, collapse = ", ")),
+                        type = "error"
+                )
+                runjs("document.getElementById('status_4').innerText = 'Need at least two distinct groups in origin or short to compare.';")
+            
                 return(NULL)
+                # Use 'short' for grouping
+                #updateSelectInput(inputId = "ref_group", choices = short, selected = short[1])
+                #updateSelectInput(inputId = "comp_group", choices = short, selected = short[2])
+            
+            } else {
+                # Use 'origin' for grouping
+                updateSelectInput(inputId = "ref_group", choices = origins, selected = origins[1])
+                updateSelectInput(inputId = "comp_group", choices = origins, selected = origins[2])
+                runjs("document.getElementById('status_4').innerText = 'Two distinct origins provided.';")
             }
-
-            updateSelectInput(inputId = "ref_group", choices = origins, selected = origins[1])
-            updateSelectInput(inputId = "comp_group", choices = origins, selected = origins[2])
         })
 
         observeEvent(input$differential , {
@@ -157,7 +180,8 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
             # Extract the comparison name from the configuration
             comparison_name <- paste(input$comp_group, "vs", input$ref_group)
-
+            print("Result of new")
+            print(head(res_list$res[[1]]))
             # Create the 'text' column in res_list$res
             res_list$res[[1]]$text <- with(res_list$res[[1]], sprintf(
                 "%s %s (%s)\nFC %.1fx p=%.2g",

@@ -18,6 +18,7 @@ library(readxl)
 # Pepitope
 library(pepitope)
 
+library(Biostrings)
 
 
 RustPipeline <- R6Class("RustPipeline",
@@ -106,7 +107,7 @@ RustPipeline <- R6Class("RustPipeline",
             textInput("read_structures", "Read Structures", value = "7B+T"),
             
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
-            checkboxGroupInput("selected_tables", "Choose tables to keep:", choices = NULL),
+            checkboxGroupInput("selected_tables", "Choose tables to keep", choices = NULL),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
             actionButton("run_pipeline", "Run Pipeline"),
@@ -209,31 +210,65 @@ RustPipeline <- R6Class("RustPipeline",
 
       # 3.2. read Constructs from tables (returns structured list of peptide tables)
       observeEvent(input$peptide_table, {
-          
-          # Errors resolved inside prepare_peptide_table
-          #### Check here which tables shall be chosen?
-          # Set all_construcs global via reative
-         self$rv$all_constructs <- rust_pipeline$prepare_peptide_table(
-            peptide_table = peptide_table_path()
-          )
-
-          table_names <- names(self$rv$all_constructs)
-          print(table_names)
-          # Show a shinyalert with a checkboxGroupInput
           showModal(modalDialog(
-            title = "Select Tables",
-            checkboxGroupInput("selected_tables_modal", 
-                              "Choose tables to keep:", 
-                              choices = table_names, 
-                              selected = table_names),  # Preselect all tables
+            title = "Choose an Option",
+            radioButtons( 
+              inputId = "radio", 
+              label = "Reverse complement?", 
+              choices = list("Yes" = 1, "No" = 2), 
+              selected = 2
+            ), 
             footer = tagList(
               modalButton("Cancel"),
               actionButton("confirm_selection", "Confirm Selection")
             )
           ))
-      })
+        })
 
-      observeEvent(input$confirm_selection, {
+        # This runs ONLY when the Confirm button is clicked
+        observeEvent(input$confirm_selection, {
+          removeModal()  # Close the modal
+          
+          lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+          barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
+
+          # Apply the choice
+          if (input$radio == 1) {
+                self$rv$valid_barcodes <- as.character(
+                  reverseComplement(DNAStringSet(as.character(barcodes)))
+                ) 
+                print("Barcodes - Reverse:")
+                print(class(self$rv$valid_barcodes))
+          } else {
+                self$rv$valid_barcodes <- barcodes
+                print("Barcodes - Non-Reverse:")
+                print(class(self$rv$valid_barcodes))
+          }
+
+          # Proceed only after choice has been made
+          self$rv$all_constructs <- rust_pipeline$prepare_peptide_table(
+            peptide_table = peptide_table_path()
+          )
+
+          table_names <- names(self$rv$all_constructs)
+
+          # Now show second modal
+          showModal(modalDialog(
+            title = "Select Tables",
+            checkboxGroupInput("selected_tables_modal", 
+              "Choose tables to keep:", 
+              choices = table_names, 
+              selected = table_names
+            ),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton("confirm_tables", "Confirm Tables")
+            )
+          ))
+        })
+
+
+      observeEvent(input$confirm_tables, {
             # Results of selection
             selected_tables <- input$selected_tables_modal
 
@@ -244,10 +279,8 @@ RustPipeline <- R6Class("RustPipeline",
 
               # Close the dialog
               removeModal()
-              # Display subset
-              lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
-              self$rv$valid_barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
-
+              
+              # Display subset                         
               output$subplot_barcodes <- renderPlot({
                 print(names(self$rv$selected_constructs))
                 pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
@@ -276,6 +309,19 @@ RustPipeline <- R6Class("RustPipeline",
          # Step 1: Run fqtk
         runjs("document.getElementById('status_2').innerText = 'Step 1/10 - Running fqtk demux...';")
         # Future optional: max_mismatches = input$max_mismatches,
+        tmp_dir <- tempdir()  # Or your custom temp directory path
+        # List all files and folders inside the temp directory
+        print("pre")
+        print(list.files(tmp_dir))
+        files_to_delete <- list.files(tmp_dir, full.names = TRUE, recursive = TRUE)
+        
+        # Exclude samples_tsv
+        files_to_delete <- files_to_delete[normalizePath(files_to_delete) != normalizePath(samples_tsv)]
+
+        # Delete them
+        unlink(files_to_delete, recursive = TRUE, force = TRUE)
+        print("post")
+        print(list.files(tmp_dir))
         tmp_dir <- pepitope::demux_fq(fastq_file_path(), samples_tsv, input$read_structures)
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
@@ -285,39 +331,31 @@ RustPipeline <- R6Class("RustPipeline",
         result_files = list.files(tmp_dir, pattern="\\.fq\\.gz$")
         print("All files")
         print(list.files(tmp_dir))
-        shinyalert(
-                title = "demux resulted in nice files", 
-                text = paste("Counted files \\.fq\\.gz: ", paste(result_files, collapse = ", ")),
-                type = "success"
-          )
-      
-
-
+     
         #valid_barcodes = readr::read_tsv("test.txt", col_names=FALSE)
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
         dset <- tryCatch({
-          ###  all_constructs = list(my_bc_type = my_data_frame)
-          dset <- pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
-                  shinyalert(
-                  title = "demux resulted in nice files", 
-                  text = paste("Counted files: ", paste(result_files, collapse = ", ")),
-                  type = "success"
-          )
+          pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
         }, error = function(e) {
-            # Handle the error gracefully
-            shinyalert(
-              title = "Error",
-              text = paste("An error occurred: ", e$message),
-              type = "error"
-            )
-            return(NULL)  # Return NULL in case of error
-          })
-
+          shinyalert(
+            title = "Error",
+            text = paste("An error occurred while counting barcodes:", e$message),
+            type = "error"
+          )
+          return(NULL)  # Return a safe fallback
+        })
         # colData(dset) – access the sample metadata as data.frame
         # rowData(dset) – access the construct metadata as data.frame
         # assay(dset) – access the construct counts as matrix
         # Step 2: Display fqtk metrics
+        print("head dset")
+        print(head(dset))
+        print("-------------")
+        print(head(colData(dset)))
+        print(head(rowData(dset)))
+        print(head(assay(dset)))
+
         output$sample_meta_data <- renderTable({
           colData(dset)
         })
@@ -326,18 +364,24 @@ RustPipeline <- R6Class("RustPipeline",
    
         # Step 6: Output: {output}.counts.txt, {output}.-extended-counts.txt,  {output}.stats.txt display them in a table
         runjs("document.getElementById('status_2').innerText = 'Step 5/10 - Guide-counter successfully. Disyplay results';")
-        
-        output$construct_meta_data <- renderTable({
-          rowData(dset)
-        })
+ 
 
         # Add rownames = barcodes to count matrix
-        construct_counts <- as.data.frame(assay(dset)) |> 
-              mutate(barcode=rownames(dset)) |>
-              dplyr::select(barcode, everything())
+        construct_counts <- as.data.frame(assay(dset))
+
+        # Only add barcode column if rownames are not already in the data
+        if (!"barcode" %in% colnames(construct_counts)) {
+          construct_counts <- construct_counts |>
+            mutate(barcode = rownames(dset)) |>
+            dplyr::select(barcode, everything())
+        }
 
         output$construct_counts <- renderTable({
           construct_counts 
+        })
+
+        output$construct_counts <- renderTable({
+          assay(dset) 
         })
 
         # "Files in tmp directory"
@@ -403,7 +447,7 @@ RustPipeline <- R6Class("RustPipeline",
 
             # 3. Export Construct Counts (assay)
             construct_counts <- as.data.frame(assay(dset))
-            
+      
             # Include row names in the Construct Counts data
             construct_counts <- tibble::rownames_to_column(construct_counts, var = "Barcode")
 
