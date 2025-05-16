@@ -76,9 +76,6 @@ RustPipeline <- R6Class("RustPipeline",
       return(all_constructs)
     }, 
 
-
-
-
     ui = function() {
       tabPanel("Quality control",
         sidebarLayout(
@@ -102,14 +99,20 @@ RustPipeline <- R6Class("RustPipeline",
               textInput("export_filename", "Export Filename", value = "metadata.tsv"),
               downloadButton("export_table", "Export Table")
             ),
-            
-            #numericInput("max_mismatches", "Max Mismatches", value = 0, min = 0, max = 10),
-            textInput("read_structures", "Read Structures", value = "7B+T"),
-            
+
+            checkboxGroupInput("selected_tables", "", choices = NULL), 
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
-            checkboxGroupInput("selected_tables", "Choose tables to keep", choices = NULL),
+            div(id= "show_edit_sheets", style = "display: none;",
+              actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
+            ),
+            tags$hr(),
+
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
+            textInput("read_structures", "Read Structures", value = "7B+T"),
+            #numericInput("max_mismatches", "Max Mismatches", value = 0, min = 0, max = 10),
+            tags$hr(),
+
             actionButton("run_pipeline", "Run Pipeline"),
             div(id= "export_metrics", style = "display: none;",
               downloadButton("download_new_peptide_table", "Download Results: 2-all-metrics.xlsx"),
@@ -122,7 +125,7 @@ RustPipeline <- R6Class("RustPipeline",
                 tabPanel("Barcode overlap", plotOutput("subplot_barcodes")),    
                 tabPanel("Sample Metadata", tableOutput("sample_meta_data")),
                 tabPanel("Construct Metadata", tableOutput("construct_meta_data")),
-                tabPanel("Construct Counts", tableOutput("construct_counts")),
+                tabPanel("Construct Counts", h4("Top 50 Constructs (based on total counts)"), tableOutput("construct_counts")),
                 tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
                 tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
                 tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
@@ -202,95 +205,123 @@ RustPipeline <- R6Class("RustPipeline",
 
 
       # 3. Step: Peptide-handling
+      selected_sheets <- reactiveVal()
+      reverse_flags <- reactiveVal(list())
+
       # 3.1. get Path
       peptide_table_path <- reactive({
           req(input$peptide_table)
           input$peptide_table$datapath
       })
 
-      # 3.2. read Constructs from tables (returns structured list of peptide tables)
+
+      # 3.2. display plot
       observeEvent(input$peptide_table, {
-
-          showModal(modalDialog(
-            title = "Choose an Option",
-            radioButtons( 
-              inputId = "radio", 
-              label = "Reverse complement?", 
-              choices = list("Yes" = 1, "No" = 2), 
-              selected = 2
-            ), 
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton("confirm_selection", "Confirm Selection")
-            )
-          ))
-        })
-
-        # This runs ONLY when the Confirm button is clicked
-        observeEvent(input$confirm_selection, {
-          removeModal()  # Close the modal
-          
-          lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
-          barcodes = readr::read_tsv(lib, col_names=FALSE)$X1
-
-          # Apply the choice
-          if (input$radio == 1) {
-                self$rv$valid_barcodes <- as.character(
-                  reverseComplement(DNAStringSet(as.character(barcodes)))
-                ) 
-                print("Barcodes - Reverse:")
-                print(class(self$rv$valid_barcodes))
-          } else {
-                self$rv$valid_barcodes <- barcodes
-                print("Barcodes - Non-Reverse:")
-                print(class(self$rv$valid_barcodes))
-          }
-
-          # Proceed only after choice has been made
+       
           self$rv$all_constructs <- rust_pipeline$prepare_peptide_table(
             peptide_table = peptide_table_path()
           )
 
-          table_names <- names(self$rv$all_constructs)
+          # Define valid barcodes
+          lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+          self$rv$valid_barcodes <- readr::read_tsv(lib, col_names=FALSE)$X1
 
-          # Now show second modal
-          showModal(modalDialog(
-            title = "Select Tables",
-            checkboxGroupInput("selected_tables_modal", 
-              "Choose tables to keep:", 
-              choices = table_names, 
-              selected = table_names
-            ),
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton("confirm_tables", "Confirm Tables")
-            )
-          ))
-        })
-
-
-      observeEvent(input$confirm_tables, {
-            # Results of selection
-            selected_tables <- input$selected_tables_modal
-
-            if (length(selected_tables) > 0) {
-
-              # Build subset with the selected
-              self$rv$selected_constructs <- self$rv$all_constructs[selected_tables]
-
-              # Close the dialog
-              removeModal()
-              
-              # Display subset                         
-              output$subplot_barcodes <- renderPlot({
-                print(names(self$rv$selected_constructs))
-                pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
-              })
-              } else {
-              # Show an error if no tables were selected
-              shinyalert("Error", "Please select at least one table to proceed.", type = "error")
-            }
+          output$subplot_barcodes <- renderPlot({
+            pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
           })
+
+          # Select all if the default is choosen
+          self$rv$selected_constructs <- self$rv$all_constructs
+          
+          shinyjs::show("show_edit_sheets")
+      })
+
+      # 3.3. select sheets and if they shall be rev comped -> 3.2.
+      observeEvent(input$edit_sheets, {
+        req(self$rv$all_constructs)
+        sheet_names <- names(self$rv$all_constructs)
+
+        showModal(modalDialog(
+          title = "Edit Sheets and Reverse Complement",
+          tagList(
+            checkboxGroupInput("modal_selected_sheets", "Select Sheets to Use:", 
+                              choices = sheet_names, 
+                              selected = selected_sheets()),
+            lapply(sheet_names, function(sheet) {
+              checkboxInput(paste0("rev_", sheet), paste("Reverse Complement for", sheet), 
+                            value = reverse_flags()[[sheet]] %||% FALSE)
+            })
+          ),
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton("confirm_edit_sheets", "Apply Selections")
+          ),
+          size = "l",
+          easyClose = FALSE
+        ))
+      })
+
+
+      # 3.2. 
+      observeEvent(input$confirm_edit_sheets, {
+        req(input$modal_selected_sheets)
+        removeModal()
+
+        # Delete pre-selection from default etc. to mitigate side effects
+        self$rv$selected_constructs <- NULL
+
+        sel <- input$modal_selected_sheets
+        selected_sheets(sel)
+
+        rf <- list()
+        for (sheet in names(self$rv$all_constructs)) {
+          rf[[sheet]] <- input[[paste0("rev_", sheet)]] %||% FALSE
+        }
+        reverse_flags(rf)
+
+        # Re-apply rev-comp and subset constructs
+        processed <- list()
+        for (sheet in sel) {
+          df <- self$rv$all_constructs[[sheet]]
+
+          # Support for "barcode" or "barcode_1", "barcode_2", ...
+          barcode_cols <- grep("^barcode(_\\d+)?$", names(df), value = TRUE)
+          if (length(barcode_cols) == 0) {
+            shinyalert(
+              title = "Missing barcode column",
+              text = paste0("Sheet '", sheet, "' must contain at least one column named 'barcode' or 'barcode_1', 'barcode_2', etc."),
+              type = "error"
+            )
+            return(NULL)
+          }
+
+          # Apply reverse complement if flagged
+          if (rf[[sheet]]) {
+            for (bc_col in barcode_cols) {
+              df[[bc_col]] <- as.character(reverseComplement(DNAStringSet(as.character(df[[bc_col]]))))
+            }
+          }
+
+          processed[[sheet]] <- df
+        }
+
+        names(processed) <- sel
+        self$rv$selected_constructs <- processed
+
+        tryCatch({
+          # Re-render the barcode overlap plot
+          output$subplot_barcodes <- renderPlot({
+            pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+          })
+        }, error = function(e) {
+          shinyalert(
+            title = "Duplicate barcodes or processing error",
+            text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
+                          "\nPlease review the sheet structure and ensure unique barcodes."),
+            type = "error"
+          )
+        })
+      })
 
       # Step 4: Run pipeline
       observeEvent(input$run_pipeline, {
@@ -333,7 +364,7 @@ RustPipeline <- R6Class("RustPipeline",
         print("All files")
         print(list.files(tmp_dir))
      
-        #valid_barcodes = readr::read_tsv("test.txt", col_names=FALSE)
+
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
         dset <- tryCatch({
@@ -365,7 +396,11 @@ RustPipeline <- R6Class("RustPipeline",
    
         # Step 6: Output: {output}.counts.txt, {output}.-extended-counts.txt,  {output}.stats.txt display them in a table
         runjs("document.getElementById('status_2').innerText = 'Step 5/10 - Guide-counter successfully. Disyplay results';")
- 
+
+        output$construct_meta_data <- renderTable({
+          construct_meta_data <- rowData(dset)
+          head(construct_meta_data, 50) 
+        })
 
         # Add rownames = barcodes to count matrix
         construct_counts <- as.data.frame(assay(dset))
@@ -378,11 +413,10 @@ RustPipeline <- R6Class("RustPipeline",
         }
 
         output$construct_counts <- renderTable({
-          construct_counts 
-        })
-
-        output$construct_counts <- renderTable({
-          assay(dset) 
+          df <- as.data.frame(assay(dset))
+          df$Total <- rowSums(df)  # assuming numeric values
+          df <- df[order(-df$Total), ]  # descending sort
+          head(df, 50)
         })
 
         # "Files in tmp directory"
