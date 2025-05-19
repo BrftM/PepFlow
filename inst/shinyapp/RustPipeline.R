@@ -317,27 +317,42 @@ RustPipeline <- R6Class("RustPipeline",
         names(processed) <- sel
         self$rv$selected_constructs <- processed
 
-        tryCatch({
+        
           # Re-render the barcode overlap plot
           output$subplot_barcodes <- renderPlot({
-            pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+            tryCatch({
+              pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+
+            }, error = function(e) {
+              shinyalert(
+                title = "Duplicate barcodes or processing error",
+                text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
+                              "\nPlease review the sheet structure and ensure unique barcodes."),
+                type = "error"
+              )
+            })
           })
-        }, error = function(e) {
-          shinyalert(
-            title = "Duplicate barcodes or processing error",
-            text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
-                          "\nPlease review the sheet structure and ensure unique barcodes."),
-            type = "error"
-          )
-        })
       })
 
       # Step 4: Run pipeline
       observeEvent(input$run_pipeline, {
         req(fastq_file_path(), peptide_table_path())
 
+        error_occurred <- FALSE  # flag to track error
         # Set tables from selection
         selected_tables <- self$rv$selected_constructs
+
+        tryCatch({
+          pepitope:::merge_constructs(selected_tables)
+        }, error = function(e) {
+          shinyalert(
+            title = "Error",
+            text = paste("An error occurred because of overlapping barcodes:", e$message),
+            type = "error"
+          )
+          error_occurred <<- TRUE  # set flag from error handler
+        })
+        if (error_occurred) return()
 
         # Check if sample was uploaded or has to be created
         if (input$metadata_option == "Upload File") {
@@ -376,6 +391,7 @@ RustPipeline <- R6Class("RustPipeline",
 
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
+      
         dset <- tryCatch({
           pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
         }, error = function(e) {
@@ -384,8 +400,9 @@ RustPipeline <- R6Class("RustPipeline",
             text = paste("An error occurred while counting barcodes:", e$message),
             type = "error"
           )
-          return(NULL)  # Return a safe fallback
+          error_occurred <<- TRUE  # set flag from error handler
         })
+        if (error_occurred) return()
         # colData(dset) – access the sample metadata as data.frame
         # rowData(dset) – access the construct metadata as data.frame
         # assay(dset) – access the construct counts as matrix
