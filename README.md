@@ -8,7 +8,8 @@ PepFlow is an R package designed to facilitate peptide-TCR screening workflows, 
 
 ### **Step 1: Install PepFlow**
 
-
+We require R>=4.5.0, as this includes important fixes on Bioconductor.
+ 
 ```r
 # Installation of remotes
 if (!requireNamespace("remotes", quietly = TRUE)) {
