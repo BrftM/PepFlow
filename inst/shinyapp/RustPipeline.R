@@ -131,7 +131,7 @@ RustPipeline <- R6Class("RustPipeline",
                 tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
                 tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
                 tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
-                tabPanel("Sample Correlation", plotlyOutput("subplot_plot_3"))
+                tabPanel("Barcode distribution", plotlyOutput("subplot_plot_3"))
             ),
           )
         )
