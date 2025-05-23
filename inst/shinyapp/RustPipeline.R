@@ -378,7 +378,17 @@ RustPipeline <- R6Class("RustPipeline",
         unlink(files_to_delete, recursive = TRUE, force = TRUE)
         print("post")
         print(list.files(tmp_dir))
-        tmp_dir <- pepitope::demux_fq(fastq_file_path(), samples_tsv, input$read_structures)
+
+        
+        fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath
+
+        # Check for space(s) in path and replace if present
+        if (grepl(" ", fastq_path)) {
+
+          fastq_path <- shQuote(fastq_path)
+        }
+
+        tmp_dir <- pepitope::demux_fq(fastq_path, samples_tsv, input$read_structures)
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
         
