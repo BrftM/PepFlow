@@ -31,17 +31,17 @@ DataHandling <- R6Class("DataHandling",
     transform_xlsx = function(table_path) {
         
         samples_df <- as.data.frame(
-            readxl::read_excel(table_path, sheet = "Samples", col_types = "text")
+            suppressWarnings(readxl::read_excel(table_path, sheet = "Samples", col_types = "text"))
         )
 
         # Read "Construct_Metadata" and "Construct_Counts" with default guessing (numeric when possible)
         df1 <- suppressWarnings(
-            readxl::read_excel(table_path, sheet = "Construct_Metadata")
+            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Metadata"))
         )
         construct_metadata_df <- as.data.frame(df1)
         
         df2 <- suppressWarnings(
-            readxl::read_excel(table_path, sheet = "Construct_Counts")
+            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Counts"))
         )
         counts_df <- as.data.frame(df2)
 

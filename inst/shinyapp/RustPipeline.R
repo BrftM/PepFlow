@@ -367,8 +367,6 @@ RustPipeline <- R6Class("RustPipeline",
         # Future optional: max_mismatches = input$max_mismatches,
         tmp_dir <- tempdir()  # Or your custom temp directory path
         # List all files and folders inside the temp directory
-        print("pre")
-        print(list.files(tmp_dir))
         files_to_delete <- list.files(tmp_dir, full.names = TRUE, recursive = TRUE)
         
         # Exclude samples_tsv
@@ -376,8 +374,6 @@ RustPipeline <- R6Class("RustPipeline",
 
         # Delete them
         unlink(files_to_delete, recursive = TRUE, force = TRUE)
-        print("post")
-        print(list.files(tmp_dir))
 
         
         fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath

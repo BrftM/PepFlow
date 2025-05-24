@@ -94,7 +94,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
         observeEvent(input$final_peptide_table_1, {
             req(final_peptide_table_path_1())            
         
-            sheet_names <- readxl::excel_sheets(final_peptide_table_path_1())
+            sheet_names <- suppressWarnings(readxl::excel_sheets(final_peptide_table_path_1()))
            
             required_sheets <- c("Samples", "Construct_Metadata", "Construct_Counts")
             missing_sheets <- setdiff(required_sheets, sheet_names)
@@ -118,7 +118,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             }
 
             samples_df <- as.data.frame(
-                readxl::read_excel(final_peptide_table_path_1(), sheet = "Samples", col_types = "text")
+                suppressWarnings(readxl::read_excel(final_peptide_table_path_1(), sheet = "Samples", col_types = "text"))
             )
 
 
