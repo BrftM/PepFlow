@@ -34,7 +34,7 @@ RustPipeline <- R6Class("RustPipeline",
       # Create a named list of data frames from each Excel file, using sheet names
       all_constructs <- lapply(peptide_table_paths, function(path) {
         sheet_names <- tryCatch({
-          readxl::excel_sheets(path)
+          suppressWarnings(readxl::excel_sheets(path))
         }, error = function(e) {
           message("Error reading sheets from file: ", path)
           shinyalert(
@@ -50,7 +50,7 @@ RustPipeline <- R6Class("RustPipeline",
         # Read each sheet and store in a named list
         sheets_data <- lapply(sheet_names, function(sheet) {
           tryCatch({
-            readxl::read_xlsx(path, sheet = sheet)
+            suppressWarnings(readxl::read_xlsx(path, sheet = sheet))
           }, error = function(e) {
             message("Error reading sheet: ", sheet, " from file: ", path)
             shinyalert(
