@@ -1,13 +1,7 @@
-library(shiny)
-library(R6)
-
-
-source("VariantProcessor.R")  # Source the external class
-source("RustPipeline.R")  # Source the external class
-source("DifferentialExpression.R") # Source the external class
+source("VariantProcessor.R") 
+source("RustPipeline.R")  
+source("DifferentialExpression.R") 
 source("DataHandling.R")
-
-
 
 # Create an instance of Classes
 rustPipeline <- RustPipeline$new()

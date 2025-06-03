@@ -9,7 +9,8 @@ library(SummarizedExperiment)
 # Define the Test class
 DataHandling <- R6Class("DataHandling",
     public = list(
-    
+        
+        
         writeTMPxlsx = function(report) {
 
             # Combine all data frames into a named list for writexl
@@ -47,6 +48,8 @@ DataHandling <- R6Class("DataHandling",
 
 
         # Set first column as rownames then delet first column
+        # counts_matrix <- data.matrix(counts_df[-1])
+        # rownames(counts_matrix) <- counts_df[1]
         rownames(counts_df) <- counts_df[, 1]
         counts_df <- counts_df[, -1]
         counts_matrix <- as.matrix(counts_df)

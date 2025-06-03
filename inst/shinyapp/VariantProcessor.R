@@ -21,7 +21,9 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
+      # nicht benoetigt
       seqlevelsStyle(self$asm) <- "UCSC"
+      ## ^^
       self$asm@seqinfo@genome[] <- "GRCh38"
       self$rv <- reactiveValues(report_data = list(), sheet_names = NULL)
       
@@ -63,53 +65,48 @@ VariantProcessor <- R6Class("VariantProcessor",
 
       if (is.null(report)) return("Report processing failed.")
 
-      runjs("document.getElementById('status_1').innerText = 'Step 7/11 - Convert report to tmp XLSX...';")
-      temp_file <- self$dataHandling$writeTMPxlsx(report)
-      runjs("document.getElementById('status_1').innerText = 'Step 8/11 - Reading tmp XLSX...';")
-      # Now read from that temp file
-      self$read_xlsx_sheet(temp_file, "93 nt Peptides")
+      # Extract and verify the '93 nt Peptides' sheet
+      peptide_data <- report[["93 nt Peptides"]]
+      if (is.null(peptide_data)) {
+        warning("'93 nt Peptides' sheet not found in report.")
+        return("Expected sheet missing in report.")
+      }
+
+      # Put all sheets into reactive value to display later
+      self$rv_sheet$report <- report
+
+      print(head(peptide_data))
 
 
       self$prepare_sheet_data()
       runjs("document.getElementById('status_1').innerText = 'Step 9/11 - Add barcodes to download';")
     },
 
-    read_xlsx_sheet = function(xlsx_file, sheet_name) {
-      req(xlsx_file, sheet_name)
-
-      tryCatch({
-        available_sheets <- excel_sheets(xlsx_file)
-        self$rv_sheet$barcode_sheet_name <- sheet_name
-
-        all_sheets_data <- lapply(available_sheets, function(sheet) {
-          read_xlsx(xlsx_file, sheet = sheet)
-        })
-        names(all_sheets_data) <- available_sheets
-        self$rv_sheet$all_sheets <- all_sheets_data
-
-        if (sheet_name %in% available_sheets) {
-          self$rv_sheet$barcode_sheet <- all_sheets_data[[sheet_name]]
-        } else {
-          self$rv_sheet$barcode_sheet <- NULL
-          warning(paste("Sheet", sheet_name, "not found."))
-        }
-      }, error = function(e) {
-        warning(paste("Error reading XLSX sheet:", e$message))
-      })
-    },
-
     prepare_sheet_data = function() {
-      req(self$rv_sheet$barcode_sheet)
-      self$rv_sheet$barcode_table_data <- self$rv_sheet$barcode_sheet
-      self$rv_sheet$barcode_table_data$barcode <- ""
+      req(self$rv_sheet$report)
+      print("Prepare sheet:")
+      print(head(self$rv_sheet$report[["93 nt Peptides"]]))
+
+
+      self$rv_sheet$report$peptide_table_data <- self$rv_sheet$report[["93 nt Peptides"]]
+      self$rv_sheet$report$peptide_table_data$barcode <- ""
+      print("Succes if empty: ")
+      print(head(self$rv_sheet$report$peptide_table_data))
+      print(head(self$rv_sheet$report$peptide_table_data$barcode))
+      
     },
 
     display_table = function(output, input) {
       output$dynamic_table <- renderUI({
-        req(self$rv_sheet$all_sheets)
+        req(self$rv_sheet$report, self$rv_sheet$report$peptide_table_data)
 
-        tab_list <- lapply(names(self$rv_sheet$all_sheets), function(sheet_name) {
-          is_editable <- sheet_name == self$rv_sheet$barcode_sheet_name
+        peptide_data <- self$rv_sheet$report$peptide_table_data
+
+        tab_list <- lapply(names(self$rv_sheet$report), function(sheet_name) {
+          if (sheet_name == "peptide_table_data") return(NULL)  # skip metadata entry
+
+          sheet_data <- self$rv_sheet$report[[sheet_name]]
+          is_editable <- identical(sheet_data, peptide_data)
           ns <- NS(sheet_name)
 
           tabPanel(
@@ -126,48 +123,62 @@ VariantProcessor <- R6Class("VariantProcessor",
           )
         })
 
-        do.call(tabsetPanel, c(tab_list, id = "sheet_tabs"))
+        do.call(tabsetPanel, c(Filter(Negate(is.null), tab_list), id = "sheet_tabs"))
       })
 
-      lapply(names(self$rv_sheet$all_sheets), function(sheet_name) {
+      # Render tables and setup barcode handler
+      lapply(names(self$rv_sheet$report), function(sheet_name) {
+        if (sheet_name == "peptide_table_data") return()  # skip metadata
+
         local({
           sheet <- sheet_name
           ns <- NS(sheet)
-          is_editable <- sheet == self$rv_sheet$barcode_sheet_name
+
+          is_editable <- identical(self$rv_sheet$report[[sheet]], self$rv_sheet$report$peptide_table_data)
 
           output[[ns("datatable")]] <- renderDT({
-            df <- if (is_editable) self$rv_sheet$barcode_table_data else self$rv_sheet$all_sheets[[sheet]]
-            datatable(df, editable = FALSE, options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE), rownames = FALSE)
+            df <- self$rv_sheet$report[[sheet]]
+            datatable(df, editable = FALSE,
+                      options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE),
+                      rownames = FALSE)
           })
 
           if (is_editable) {
             observeEvent(input[[ns("add_barcode")]], {
-              req(input[[ns("barcode_input")]], self$rv_sheet$barcode_table_data)
+              req(input[[ns("barcode_input")]])
 
               barcode_list <- unlist(strsplit(input[[ns("barcode_input")]], "[,\n]+"))
               barcode_list <- trimws(barcode_list)
               barcode_list <- barcode_list[barcode_list != ""]
 
-              if (length(barcode_list) != nrow(self$rv_sheet$barcode_table_data)) {
+              df <- self$rv_sheet$report[[sheet]]
+
+              if (length(barcode_list) != nrow(df)) {
                 error_msg <- sprintf(
                   "Error - %d barcodes provided, but %d rows are needed.",
                   length(barcode_list),
-                  nrow(self$rv_sheet$barcode_table_data)
+                  nrow(df)
                 )
                 runjs(sprintf("document.getElementById('status_1').innerText = '%s';", error_msg))
                 return()
               }
 
-              self$rv_sheet$barcode_table_data$barcode <- barcode_list
+              df$barcode <- barcode_list
+              self$rv_sheet$report[[sheet]] <- df
+              self$rv_sheet$report$peptide_table_data <- df  # update both
+
               runjs("document.getElementById('status_1').innerText = 'Step 10/11 - Barcodes added!';")
 
               output[[ns("datatable")]] <- renderDT({
-                datatable(self$rv_sheet$barcode_table_data, editable = FALSE, options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE), rownames = FALSE)
+                datatable(df, editable = FALSE,
+                          options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE),
+                          rownames = FALSE)
               })
             })
           }
         })
       })
+
       shinyjs::show("barcode_export")
     },
 
@@ -220,11 +231,10 @@ VariantProcessor <- R6Class("VariantProcessor",
           paste0("peptide_table_full_", Sys.Date(), ".xlsx")
         },
         content = function(file) {
-          req(self$rv_sheet$all_sheets, self$rv_sheet$barcode_table_data, self$rv_sheet$barcode_sheet_name)
+          req(self$rv_sheet$report)
 
-          export_data <- self$rv_sheet$all_sheets
-          export_data[[self$rv_sheet$barcode_sheet_name]] <- self$rv_sheet$barcode_table_data
-
+          export_data <- self$rv_sheet$report
+          
           writexl::write_xlsx(export_data, path = file)
         }
       )
