@@ -1,12 +1,3 @@
-library(R6)
-library(shiny)
-library(pepitope)
-library(AnnotationHub)
-library(writexl)
-
-library(DT)
-library(shinyjs)
-
 VariantProcessor <- R6Class("VariantProcessor",
   public = list(
     ens106 = NULL,
@@ -21,9 +12,6 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
-      # nicht benoetigt
-      seqlevelsStyle(self$asm) <- "UCSC"
-      ## ^^
       self$asm@seqinfo@genome[] <- "GRCh38"
       self$rv <- reactiveValues(report_data = list(), sheet_names = NULL)
       
@@ -51,7 +39,8 @@ VariantProcessor <- R6Class("VariantProcessor",
 
 
       runjs("document.getElementById('status_1').innerText = 'Step 6/11 - Make report...';")
-      report <- tryCatch({
+      # Put all sheets into reactive value to work with globally
+      self$rv_sheet$report <- tryCatch({
         pepitope::make_report(vars=ann, subs=subs, tiled=tiled)
       }, error = function(e) {
         warning(paste("Error in make_report:", e$message))
@@ -63,50 +52,16 @@ VariantProcessor <- R6Class("VariantProcessor",
         return(NULL)
       })
 
-      if (is.null(report)) return("Report processing failed.")
-
-      # Extract and verify the '93 nt Peptides' sheet
-      peptide_data <- report[["93 nt Peptides"]]
-      if (is.null(peptide_data)) {
-        warning("'93 nt Peptides' sheet not found in report.")
-        return("Expected sheet missing in report.")
-      }
-
-      # Put all sheets into reactive value to display later
-      self$rv_sheet$report <- report
-
-      print(head(peptide_data))
-
-
-      self$prepare_sheet_data()
-      runjs("document.getElementById('status_1').innerText = 'Step 9/11 - Add barcodes to download';")
-    },
-
-    prepare_sheet_data = function() {
-      req(self$rv_sheet$report)
-      print("Prepare sheet:")
-      print(head(self$rv_sheet$report[["93 nt Peptides"]]))
-
-
-      self$rv_sheet$report$peptide_table_data <- self$rv_sheet$report[["93 nt Peptides"]]
-      self$rv_sheet$report$peptide_table_data$barcode <- ""
-      print("Succes if empty: ")
-      print(head(self$rv_sheet$report$peptide_table_data))
-      print(head(self$rv_sheet$report$peptide_table_data$barcode))
-      
+      runjs("document.getElementById('status_1').innerText = 'Step 9/11 - Add barcodes or download';")
     },
 
     display_table = function(output, input) {
       output$dynamic_table <- renderUI({
-        req(self$rv_sheet$report, self$rv_sheet$report$peptide_table_data)
-
-        peptide_data <- self$rv_sheet$report$peptide_table_data
+        req(self$rv_sheet$report)
 
         tab_list <- lapply(names(self$rv_sheet$report), function(sheet_name) {
-          if (sheet_name == "peptide_table_data") return(NULL)  # skip metadata entry
-
-          sheet_data <- self$rv_sheet$report[[sheet_name]]
-          is_editable <- identical(sheet_data, peptide_data)
+         
+          is_editable <- identical(sheet_name, "93 nt Peptides")
           ns <- NS(sheet_name)
 
           tabPanel(
@@ -122,19 +77,17 @@ VariantProcessor <- R6Class("VariantProcessor",
             )
           )
         })
-
         do.call(tabsetPanel, c(Filter(Negate(is.null), tab_list), id = "sheet_tabs"))
       })
 
       # Render tables and setup barcode handler
       lapply(names(self$rv_sheet$report), function(sheet_name) {
-        if (sheet_name == "peptide_table_data") return()  # skip metadata
-
+       
         local({
           sheet <- sheet_name
           ns <- NS(sheet)
 
-          is_editable <- identical(self$rv_sheet$report[[sheet]], self$rv_sheet$report$peptide_table_data)
+          is_editable <- identical(sheet_name, "93 nt Peptides")
 
           output[[ns("datatable")]] <- renderDT({
             df <- self$rv_sheet$report[[sheet]]
@@ -149,6 +102,8 @@ VariantProcessor <- R6Class("VariantProcessor",
 
               barcode_list <- unlist(strsplit(input[[ns("barcode_input")]], "[,\n]+"))
               barcode_list <- trimws(barcode_list)
+
+              # Filter out empty lines so that in the next step when count happens the error can occure.
               barcode_list <- barcode_list[barcode_list != ""]
 
               df <- self$rv_sheet$report[[sheet]]
@@ -164,8 +119,9 @@ VariantProcessor <- R6Class("VariantProcessor",
               }
 
               df$barcode <- barcode_list
-              self$rv_sheet$report[[sheet]] <- df
-              self$rv_sheet$report$peptide_table_data <- df  # update both
+              print("Add barcodes to sheet:")
+              self$rv_sheet$report[["93 nt Peptides"]] <- df
+              print(head(self$rv_sheet$report[["93 nt Peptides"]]))
 
               runjs("document.getElementById('status_1').innerText = 'Step 10/11 - Barcodes added!';")
 
@@ -178,7 +134,6 @@ VariantProcessor <- R6Class("VariantProcessor",
           }
         })
       })
-
       shinyjs::show("barcode_export")
     },
 
