@@ -10,23 +10,6 @@ library(SummarizedExperiment)
 DataHandling <- R6Class("DataHandling",
     public = list(
         
-        
-        writeTMPxlsx = function(report) {
-
-            # Combine all data frames into a named list for writexl
-            data_list <- lapply(names(report), function(sheet_name) {
-                report[[sheet_name]]
-            })
-            names(data_list) <- names(report)
-
-            # Save to a temporary file
-            temp_file <- tempfile(fileext = ".xlsx")
-            
-            # Write the data to an Excel file using writexl
-            writexl::write_xlsx(data_list, path = temp_file)
-
-            return(temp_file)
-        }, 
 
     #' @return Dataframe List
     transform_xlsx = function(table_path) {
