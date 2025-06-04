@@ -146,6 +146,7 @@ VariantProcessor <- R6Class("VariantProcessor",
         sidebarLayout(
           sidebarPanel(
             width = 3,
+            actionButton("help_btn_1", "Upload info ℹ️", title = "Need help for what to upload?"),
             fileInput("vcf_file", "Upload VCF File (.vcf.gz)", accept = ".vcf.gz"),
             div(id = "run_annotation", style = "display: none;",
                 actionButton("process", "Process VCF")
@@ -182,6 +183,15 @@ VariantProcessor <- R6Class("VariantProcessor",
         runjs("document.getElementById('status_1').innerText = 'Step 6/8 - VCF file processed';")
 
         self$display_table(output, input)
+      })
+
+      observeEvent(input$help_btn_1, {
+        showModal(modalDialog(
+            title = "Help Information",
+            "Upload an variant call format file containing patient specific tumor mutations.",
+            easyClose = TRUE,
+            footer = NULL
+        ))
       })
       
       output$download_peptide_table <- downloadHandler(
