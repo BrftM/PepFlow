@@ -127,7 +127,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             print("ORIGINS")
             print(origins)
             
-            if (length(origins) <= 2) {
+            if (length(origins) <2) {
                 shinyalert(
                         title = "Not enough origins!", 
                         text = paste("Error missing distinct groups in 'origin' only one available: ", paste(origins, collapse = ", ")),
