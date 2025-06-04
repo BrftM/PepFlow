@@ -1,3 +1,16 @@
+## Class system (R6Class)
+library(R6)
+## UI/server logic
+library(shiny)
+## Data wrangling (dplyr, tibble, purrr)
+library(dplyr)
+## Static plotting
+library(ggplot2)
+library(ggpp)
+
+## Interactive plots
+library(plotly)
+
 DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 

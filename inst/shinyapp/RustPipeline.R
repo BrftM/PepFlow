@@ -1,3 +1,24 @@
+library(shiny)
+library(R6)
+library(DT)
+library(shinyjs)
+library(shinyFiles)
+library(shinyalert)
+
+# Plotting dependencys
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(patchwork)
+library(crosstalk)
+
+# Excel
+library(readxl)  
+
+# Pepitope
+library(pepitope)
+
+library(Biostrings)
 RustPipeline <- R6Class("RustPipeline",
   public = list(
     # Containts rv$all_construcs
