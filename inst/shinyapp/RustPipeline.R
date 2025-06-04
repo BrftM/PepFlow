@@ -1,35 +1,10 @@
-library(shiny)
-library(R6)
-library(DT)
-library(shinyjs)
-library(shinyFiles)
-library(shinyalert)
-
-# Plotting dependencys
-library(dplyr)
-library(ggplot2)
-library(plotly)
-library(patchwork)
-library(crosstalk)
-
-# Excel
-library(readxl)  
-
-# Pepitope
-library(pepitope)
-
-library(Biostrings)
-
-
 RustPipeline <- R6Class("RustPipeline",
   public = list(
     # Containts rv$all_construcs
     rv = reactiveValues(all_constructs = NULL),    
-
+    selected_sheets = reactiveVal(NULL),
+    
     prepare_peptide_table = function(peptide_table_paths) {
-      print("Paths")
-      # Print the paths to confirm
-      print(peptide_table_paths)
 
       # Create a named list of data frames from each Excel file, using sheet names
       all_constructs <- lapply(peptide_table_paths, function(path) {
@@ -82,6 +57,7 @@ RustPipeline <- R6Class("RustPipeline",
           sidebarPanel(
             width = 3,
             useShinyjs(),  # Include ShinyJS
+            actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
             tags$h4("1. Metadata-section"),
             radioButtons("metadata_option", "Sample Metadata Source:", choices = c("Upload File", "Create Manually")),
             conditionalPanel(
@@ -139,6 +115,63 @@ RustPipeline <- R6Class("RustPipeline",
     },
 
     server = function(input, output, session) {
+
+      observeEvent(input$help_btn_2, {
+            showModal(modalDialog(
+              title = "📘 Help: Upload Instructions",
+              HTML(
+                "<div style='line-height: 1.5;'>
+
+                  <h4>🧾 1. Sample Sheet</h4>
+                  <p>Upload or \"Create Manually\" a sample sheet with the following format:</p>
+                  <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+                      sample_id     patient       rep origin    barcode
+          1           lib1          pat2+common   1   Library   AAGACCA
+          2           lib2          pat3          1   Library   CCAGTGT
+          3           mock1         pat1+common   1   Mock      TGAGTCC
+          4           mock2         pat1+common   2   Mock      CAAGATG
+          5           screen1       pat1+common   1   Sample    AACCGAC
+          6           screen2       pat1+common   2   Sample    AGAATCG
+                  </pre>
+                  <p>The barcode in the table is not the Oligo barcode of the constructs but the sample barcode!</p>
+
+                  <h4>🔬 2. Peptide Table</h4>
+                  <p>Upload a peptide table (one sheet per patient), with columns:</p>
+                  <code>var_id, mut_id, pep_id, pep_type, gene_name, gene_id, tx_id, tiled, n_tiles, nt, peptide, barcode</code>
+                  <p>
+                    Assure that the sheets of the peptide table don’t use overlapping oligo barcodes. 
+                    You can check for overlaps in the <strong>“Barcode overlap”</strong> tab by selecting the relevant sheets 
+                    and choosing whether barcodes should be used in reverse complement.
+                  </p>
+                  <ul>
+                    <li><code>barcode</code> – if only one barcode per construct</li>
+                    <li><code>barcode_1</code>, <code>barcode_2</code>, etc. – if multiple barcodes per construct</li>
+                  </ul>
+                  <p><em>Example — Sheetname: pat1</em></p>
+                  <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+          var_id                mut_id     pep_id       pep_type   gene_name  ...  barcode_1    barcode_2
+          chr1:114713908_T/A    NRAS_Q61L  NRAS_Q61     ref        NRAS       ...  AACAACAACACC AACA...
+          chr1:114713908_T/A    NRAS_Q61L  NRAS_Q61L    alt        NRAS       ...  AACAACAACGGT AACA...
+                  </pre>
+                  <p><em>Example — Sheetname: pat2</em></p>
+                  <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+          var_id                mut_id     pep_id       pep_type   gene_name  ...  barcode_1    barcode_2
+          chr1:114713908_T/C    NRAS_Q61R  NRAS_Q61R    alt        NRAS       ...  AACAGTGGTCTT AACC...
+          chr2:208248388_G/A    IDH1_R132L IDH1_R132    ref        IDH1       ...  AACATAACGAGG AACC...
+                  </pre>
+
+                  <h4>📂 3. FASTQ File</h4>
+                  <p>Upload a FASTQ file containing sequencing results from co-culture experiments.</p>
+
+                </div>"
+              ),
+              easyClose = TRUE,
+              size = "l",
+              footer = NULL
+            ))
+          })
+
+
       status_2 <- reactiveVal("Waiting for input...")
       output$status_2 <- renderText({status_2()})
 
@@ -243,13 +276,15 @@ RustPipeline <- R6Class("RustPipeline",
         req(self$rv$all_constructs)
         sheet_names <- names(self$rv$all_constructs)
 
+        current_selection <- selected_sheets() %||% sheet_names
+
         showModal(modalDialog(
           title = "Edit Sheets and Reverse Complement",
           tagList(
             tags$h4("1. Select Sheets to Use"),
             checkboxGroupInput("modal_selected_sheets", NULL, 
                               choices = sheet_names, 
-                              selected = sheet_names),
+                              selected = current_selection),
             
             tags$hr(),
             tags$h4("2. Reverse Complement Options"),
@@ -269,16 +304,17 @@ RustPipeline <- R6Class("RustPipeline",
         ))
       })
 
+      
 
 
       # 3.2. 
       observeEvent(input$confirm_edit_sheets, {
         req(input$modal_selected_sheets)
-        removeModal()
-
+        removeModal() 
         # Delete pre-selection from default etc. to mitigate side effects
         self$rv$selected_constructs <- NULL
 
+        selected_sheets(input$modal_selected_sheets)  # ✅ update global value of selected sheets
         sel <- input$modal_selected_sheets
         selected_sheets(sel)
 
@@ -492,7 +528,6 @@ RustPipeline <- R6Class("RustPipeline",
                 text = paste("Have fun checking the results! "),
                 type = "success"
         )
-
         output$download_new_peptide_table <- downloadHandler(
           filename = function() {
             "2-all-metrics.xlsx"
