@@ -62,6 +62,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
               sidebarLayout(
                   sidebarPanel(
                       width = 3,
+                      actionButton("help_btn_3", "Upload info ℹ️", title = "Need help for what to upload?"),
                       fileInput("final_peptide_table_1", "Please select 2-all-metrics.xlsx file"),
                       selectInput("ref_group", "Reference Group", choices = NULL),
                       selectInput("comp_group", "Comparison Group", choices = NULL),
@@ -104,12 +105,11 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 runjs(paste("document.getElementById('status_4').innerText = 'Error missing sheet: ", paste(missing_sheets, collapse = ", "), "';", sep = ""))
 
                 # Optionally, disable or hide further controls to prevent the user from continuing with the analysis
-                runjs("document.getElementById('status_4').innerText += ', please upload a valid file sheets (Samples, Construct_Metadata, Construct_Counts)';")
-                    shinyalert(
-                            title = "Missing Sheet(s)!", 
-                            text = paste("Error missing sheet in all-metrics file: ", paste(missing_sheets, collapse = ", ")),
-                            type = "error"
-                    )
+                shinyalert(
+                        title = "Missing Sheet(s)!", 
+                        text = paste("Error missing sheet in all-metrics file: ", paste(missing_sheets, collapse = ", ")),
+                        type = "error"
+                )
                 # Clear the UI selections (in case there are any selections made)
                 updateSelectInput(inputId = "ref_group", choices = NULL)
                 updateSelectInput(inputId = "comp_group", choices = NULL)
@@ -122,10 +122,8 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             )
 
 
-
+            # Select only unique origins to make it selectable
             origins <- unique(samples_df$origin)
-            print("ORIGINS")
-            print(origins)
             
             if (length(origins) <2) {
                 shinyalert(
@@ -145,6 +143,59 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             }
         })
 
+        observeEvent(input$help_btn_3, {
+            showModal(modalDialog(
+                title = "📘 Help: Upload Instructions",
+                HTML(
+                "<div style='line-height: 1.5;'>
+
+                    <h4>🗂️ Excel File Format (2-all-metrics.xlsx)</h4>
+                    <p>Upload an Excel file containing the following three sheets:</p>
+                    <ul>
+                    <li><strong>Samples</strong></li>
+                    <li><strong>Construct_Metadata</strong></li>
+                    <li><strong>Construct_Counts</strong></li>
+                    </ul>
+                    <p>⚠️ All three sheets must contain only data from a single patient.</p>
+
+                    <h4>🧾 1. Samples Sheet</h4>
+                    <p>Must include one unique patient only and at least two different origins. Format example:</p>
+                    <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+            sample_id  patient       rep  origin  barcode  total_reads  mapped_reads  smp        short                  label
+            mock1      pat1+common   1    Mock    TGAGTCC  224687       224687        Mock-1     pat1+common Mock-1     pat1+common Mock-1 (mock1)
+            screen1    pat1+common   1    Sample  AACCGAC  454355       454355        Sample-1   pat1+common Sample-1   pat1+common Sample-1 (screen1)
+                    </pre>
+
+                    <h4>🧬 2. Construct_Metadata Sheet</h4>
+                    <p>This sheet must also contain only entries for one patient.</p>
+                    <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+            barcode        bc_type  var_id             gene_name  mut_id         pep_id        pep_type  gene_id        tx_id           n_tiles  BbsI_replaced  tiled  nt  peptide
+            AACAACCATCCA   pat1     chr1:46458643_T/C  BKLA1      KLN2A1_EdP     KLN2A1_Ed     ref       KNLG...        MDST...         1        0              ...    93  LEDDAA...
+            AACAACCGCATT   pat1     chr1:56458644_C/T  BKLA1      KLN2A1_EdL     KLN2A1_EdL    alt       KNLG...        MDST...         1        0              ...    93  LEDDAA...
+                    </pre>
+
+                    <h4>📊 3. Construct_Counts Sheet</h4>
+                    <p>Must contain count data for the same patient as in the Samples sheet.</p>
+                    <ul>
+                    <li>The number of columns must match the number of sample rows of the used sample sheet.</li>
+                    <li>All samples must belong to the same patient.</li>
+                    </ul>
+                    <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+                           mock1  screen1   ...
+            AACAACCATCCA   17     25    
+            AACAACCGCATT   17     2     
+            AACAACACAAGC   0      0     
+            ...
+                    </pre>
+
+                </div>"
+                ),
+                easyClose = TRUE,
+                size = "l",
+                footer = NULL
+            ))
+            })
+
         observeEvent(input$differential , {
            req(final_peptide_table_path_1(), input$ref_group , input$comp_group )
 
@@ -153,22 +204,16 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
             if (input$ref_group == input$comp_group) {
                 runjs("document.getElementById('status_4').innerText = 'Reference group and comparison group must be different.';")
+                shinyalert(
+                        title = "Can´t compare group with itself.", 
+                        text = paste("Error Reference group and comparison group must be different!"),
+                        type = "error"
+                )
                 return(NULL)
             }
 
             dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
             
-            print("1. Sample metadata -> COL DATA DSET")
-            print(head(colData(dset)))
-            print("2. Construct metadata -> ROW DATA DSET")
-            print(head(rowData(dset)))
-            print("3. Construct metadata -> ASSAY COUNTS DSET")
-            print(head(assay(dset)))
-
-            print("Comp vs. Comp")
-            print(input$comp_group)
-            print(input$ref_group)
-
             # Run the differential expression analysis
             res_list <- self$run_differential_expression(dset, input$ref_group , input$comp_group )
         
@@ -177,8 +222,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
             # Extract the comparison name from the configuration
             comparison_name <- paste(input$comp_group, "vs", input$ref_group)
-            print("Result of new")
-            print(head(res_list$res[[1]]))
+
             # Create the 'text' column in res_list$res
             res_list$res[[1]]$text <- with(res_list$res[[1]], sprintf(
                 "%s %s (%s)\nFC %.1fx p=%.2g",
@@ -200,7 +244,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
             # Render the interactive Plotly plot
             output$de_plot <- renderPlotly({
-                print("DEBUG: Rendering interactive plot")
                 if (exists("plt") && !is.null(plt)) {
                     ggplotly(plt, tooltip = "text")  # Display the interactive plot with tooltips
                 } else {
