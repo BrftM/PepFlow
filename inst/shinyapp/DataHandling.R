@@ -6,54 +6,23 @@ library(readxl)
 
 library(SummarizedExperiment)
 
-# Define the Test class
 DataHandling <- R6Class("DataHandling",
     public = list(
-    
-        writeTMPxlsx = function(report) {
+        
 
-            # Combine all data frames into a named list for writexl
-            data_list <- lapply(names(report), function(sheet_name) {
-                report[[sheet_name]]
-            })
-            names(data_list) <- names(report)
-
-            # Save to a temporary file
-            temp_file <- tempfile(fileext = ".xlsx")
-            
-            # Write the data to an Excel file using writexl
-            writexl::write_xlsx(data_list, path = temp_file)
-
-            return(temp_file)
-        }, 
-
-    #' @return Dataframe List
+    #' @return SummarizedExperiment for differential expression
     transform_xlsx = function(table_path) {
         
-        samples_df <- as.data.frame(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Samples", col_types = "text"))
-        )
+        samples_df <- readxl::read_excel(table_path, sheet = "Samples", col_types = "text")
 
-        # Read "Construct_Metadata" and "Construct_Counts" with default guessing (numeric when possible)
-        df1 <- suppressWarnings(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Metadata"))
-        )
-        construct_metadata_df <- as.data.frame(df1)
+        construct_metadata_df <- readxl::read_excel(table_path, sheet = "Construct_Metadata", col_types = "text")
         
-        df2 <- suppressWarnings(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Counts"))
-        )
-        counts_df <- as.data.frame(df2)
+        counts_df <- readxl::read_excel(table_path, sheet = "Construct_Counts")
 
-
-        # Set first column as rownames then delet first column
-        rownames(counts_df) <- counts_df[, 1]
-        counts_df <- counts_df[, -1]
-        counts_matrix <- as.matrix(counts_df)
-
-        print("NEW COUNTS HEAD DEBUG")
-        print(head(counts_matrix))
-
+        # Drops the first column, retaining only numeric/count data.
+        counts_matrix <- as.matrix(counts_df[, -1])
+        # Accesses the first column of counts_df as a vector to get barcodes
+        rownames(counts_matrix) <- counts_df[[1]]
 
         dset <- SummarizedExperiment(
             assays = list(counts = counts_matrix),

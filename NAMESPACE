@@ -1,7 +1,1 @@
 export(runShinyApp)
-import(pepitope)
-import(shiny)
-import(shinyjs)
-import(shinyFiles)
-import(BSgenome.Hsapiens.UCSC.hg38)
-import(SummarizedExperiment)

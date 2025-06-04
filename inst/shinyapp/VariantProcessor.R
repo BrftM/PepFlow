@@ -21,36 +21,41 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
-      seqlevelsStyle(self$asm) <- "UCSC"
       self$asm@seqinfo@genome[] <- "GRCh38"
-      self$rv <- reactiveValues(report_data = list(), sheet_names = NULL)
+      self$rv <- reactiveValues(report_data = list())
       
       self$dataHandling <- dataHandling
     },
 
     process_vcf = function(vcf_file) {
-      runjs("document.getElementById('status_1').innerText = 'Step 1/11 - Read VcF as VRanges...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 2/8 - Read VcF as VRanges...';")
 
-
+      # Reading and filtering mutations
       vr1 <- pepitope::readVcfAsVRanges(vcf_file) |>
         pepitope::filter_variants(min_cov=2, min_af=0.05, pass=TRUE, chrs="default")
 
-      runjs("document.getElementById('status_1').innerText = 'Step 2/11 - Annotate coding...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
+      # Annotating and subsetting expressed variants
       ann <- pepitope::annotate_coding(vr1, self$ens106, self$asm)  
-
-      runjs("document.getElementById('status_1').innerText = 'Step 4/11 - Subset context...';")
       subs <- ann |>
         pepitope::subset_context(15)
 
-      runjs("document.getElementById('status_1').innerText = 'Step 5/11 Tiling cDNAs of interest into smaller peptides ...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 4/8 Tiling cDNAs of interest into smaller peptides ...';")
+      # Tiling cDNAs of interest into smaller peptides
       tiled <- pepitope::make_peptides(subs) |>
         pepitope::pep_tile() |>
         pepitope::remove_cutsite(BbsI="GAAGAC")
 
 
-      runjs("document.getElementById('status_1').innerText = 'Step 6/11 - Make report...';")
-      report <- tryCatch({
+      runjs("document.getElementById('status_1').innerText = 'Step 5/8 - Make report...';")
+      # Put all sheets of Report into reactive value to work with globally
+      self$rv_sheet$report <- tryCatch({
         pepitope::make_report(vars=ann, subs=subs, tiled=tiled)
+        shinyalert(
+          title = "Report completed", 
+          text = paste("Barcodes can be added in sheet \"93 nt Peptides.\""),
+          type = "success"
+        )
       }, error = function(e) {
         warning(paste("Error in make_report:", e$message))
           shinyalert(
@@ -60,56 +65,16 @@ VariantProcessor <- R6Class("VariantProcessor",
           )
         return(NULL)
       })
-
-      if (is.null(report)) return("Report processing failed.")
-
-      runjs("document.getElementById('status_1').innerText = 'Step 7/11 - Convert report to tmp XLSX...';")
-      temp_file <- self$dataHandling$writeTMPxlsx(report)
-      runjs("document.getElementById('status_1').innerText = 'Step 8/11 - Reading tmp XLSX...';")
-      # Now read from that temp file
-      self$read_xlsx_sheet(temp_file, "93 nt Peptides")
-
-
-      self$prepare_sheet_data()
-      runjs("document.getElementById('status_1').innerText = 'Step 9/11 - Add barcodes to download';")
-    },
-
-    read_xlsx_sheet = function(xlsx_file, sheet_name) {
-      req(xlsx_file, sheet_name)
-
-      tryCatch({
-        available_sheets <- excel_sheets(xlsx_file)
-        self$rv_sheet$barcode_sheet_name <- sheet_name
-
-        all_sheets_data <- lapply(available_sheets, function(sheet) {
-          read_xlsx(xlsx_file, sheet = sheet)
-        })
-        names(all_sheets_data) <- available_sheets
-        self$rv_sheet$all_sheets <- all_sheets_data
-
-        if (sheet_name %in% available_sheets) {
-          self$rv_sheet$barcode_sheet <- all_sheets_data[[sheet_name]]
-        } else {
-          self$rv_sheet$barcode_sheet <- NULL
-          warning(paste("Sheet", sheet_name, "not found."))
-        }
-      }, error = function(e) {
-        warning(paste("Error reading XLSX sheet:", e$message))
-      })
-    },
-
-    prepare_sheet_data = function() {
-      req(self$rv_sheet$barcode_sheet)
-      self$rv_sheet$barcode_table_data <- self$rv_sheet$barcode_sheet
-      self$rv_sheet$barcode_table_data$barcode <- ""
     },
 
     display_table = function(output, input) {
+      runjs("document.getElementById('status_1').innerText = 'Step 7/8 - Add barcodes or download';")
       output$dynamic_table <- renderUI({
-        req(self$rv_sheet$all_sheets)
+        req(self$rv_sheet$report)
 
-        tab_list <- lapply(names(self$rv_sheet$all_sheets), function(sheet_name) {
-          is_editable <- sheet_name == self$rv_sheet$barcode_sheet_name
+        tab_list <- lapply(names(self$rv_sheet$report), function(sheet_name) {
+         
+          is_editable <- identical(sheet_name, "93 nt Peptides")
           ns <- NS(sheet_name)
 
           tabPanel(
@@ -125,44 +90,58 @@ VariantProcessor <- R6Class("VariantProcessor",
             )
           )
         })
-
-        do.call(tabsetPanel, c(tab_list, id = "sheet_tabs"))
+        do.call(tabsetPanel, c(Filter(Negate(is.null), tab_list), id = "sheet_tabs"))
       })
 
-      lapply(names(self$rv_sheet$all_sheets), function(sheet_name) {
+      # Render tables and setup barcode handler
+      lapply(names(self$rv_sheet$report), function(sheet_name) {
+       
         local({
           sheet <- sheet_name
           ns <- NS(sheet)
-          is_editable <- sheet == self$rv_sheet$barcode_sheet_name
+
+          is_editable <- identical(sheet_name, "93 nt Peptides")
 
           output[[ns("datatable")]] <- renderDT({
-            df <- if (is_editable) self$rv_sheet$barcode_table_data else self$rv_sheet$all_sheets[[sheet]]
-            datatable(df, editable = FALSE, options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE), rownames = FALSE)
+            df <- self$rv_sheet$report[[sheet]]
+            datatable(df, editable = FALSE,
+                      options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE),
+                      rownames = FALSE)
           })
 
           if (is_editable) {
             observeEvent(input[[ns("add_barcode")]], {
-              req(input[[ns("barcode_input")]], self$rv_sheet$barcode_table_data)
+              req(input[[ns("barcode_input")]])
 
               barcode_list <- unlist(strsplit(input[[ns("barcode_input")]], "[,\n]+"))
               barcode_list <- trimws(barcode_list)
+
+              # Filter out empty lines so that in the next step when count happens the error can occure.
               barcode_list <- barcode_list[barcode_list != ""]
 
-              if (length(barcode_list) != nrow(self$rv_sheet$barcode_table_data)) {
+              df <- self$rv_sheet$report[[sheet]]
+
+              if (length(barcode_list) != nrow(df)) {
                 error_msg <- sprintf(
                   "Error - %d barcodes provided, but %d rows are needed.",
                   length(barcode_list),
-                  nrow(self$rv_sheet$barcode_table_data)
+                  nrow(df)
                 )
                 runjs(sprintf("document.getElementById('status_1').innerText = '%s';", error_msg))
                 return()
               }
 
-              self$rv_sheet$barcode_table_data$barcode <- barcode_list
-              runjs("document.getElementById('status_1').innerText = 'Step 10/11 - Barcodes added!';")
+              df$barcode <- barcode_list
+              print("Add barcodes to sheet:")
+              self$rv_sheet$report[["93 nt Peptides"]] <- df
+              print(head(self$rv_sheet$report[["93 nt Peptides"]]))
+
+              runjs("document.getElementById('status_1').innerText = 'Step 8/8 - Barcodes added!';")
 
               output[[ns("datatable")]] <- renderDT({
-                datatable(self$rv_sheet$barcode_table_data, editable = FALSE, options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE), rownames = FALSE)
+                datatable(df, editable = FALSE,
+                          options = list(pageLength = 10, autoWidth = TRUE, scrollX = TRUE),
+                          rownames = FALSE)
               })
             })
           }
@@ -176,6 +155,7 @@ VariantProcessor <- R6Class("VariantProcessor",
         sidebarLayout(
           sidebarPanel(
             width = 3,
+            actionButton("help_btn_1", "Upload info ℹ️", title = "Need help for what to upload?"),
             fileInput("vcf_file", "Upload VCF File (.vcf.gz)", accept = ".vcf.gz"),
             div(id = "run_annotation", style = "display: none;",
                 actionButton("process", "Process VCF")
@@ -205,14 +185,22 @@ VariantProcessor <- R6Class("VariantProcessor",
       observeEvent(input$process, {
         req(input$vcf_file)
 
-        runjs("document.getElementById('status_1').innerText = 'Step 11/11 - Processing VCF file...';")
+        runjs("document.getElementById('status_1').innerText = 'Step 1/8 - Processing VCF file...';")
+
         self$process_vcf(input$vcf_file$datapath)
-        shinyalert(
-            title = "Count completed", 
-            text = paste("Have fun checking the results! "),
-            type = "success"
-        )
+
+        runjs("document.getElementById('status_1').innerText = 'Step 6/8 - VCF file processed';")
+
         self$display_table(output, input)
+      })
+
+      observeEvent(input$help_btn_1, {
+        showModal(modalDialog(
+            title = "Help Information",
+            "Upload an variant call format file containing patient specific tumor mutations.",
+            easyClose = TRUE,
+            footer = NULL
+        ))
       })
       
       output$download_peptide_table <- downloadHandler(
@@ -220,11 +208,10 @@ VariantProcessor <- R6Class("VariantProcessor",
           paste0("peptide_table_full_", Sys.Date(), ".xlsx")
         },
         content = function(file) {
-          req(self$rv_sheet$all_sheets, self$rv_sheet$barcode_table_data, self$rv_sheet$barcode_sheet_name)
+          req(self$rv_sheet$report)
 
-          export_data <- self$rv_sheet$all_sheets
-          export_data[[self$rv_sheet$barcode_sheet_name]] <- self$rv_sheet$barcode_table_data
-
+          export_data <- self$rv_sheet$report
+          
           writexl::write_xlsx(export_data, path = file)
         }
       )
