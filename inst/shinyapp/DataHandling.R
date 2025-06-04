@@ -14,32 +14,16 @@ DataHandling <- R6Class("DataHandling",
     #' @return Dataframe List
     transform_xlsx = function(table_path) {
         
-        samples_df <- as.data.frame(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Samples", col_types = "text"))
-        )
+        samples_df <- readxl::read_excel(table_path, sheet = "Samples", col_types = "text")
 
-        # Read "Construct_Metadata" and "Construct_Counts" with default guessing (numeric when possible)
-        df1 <- suppressWarnings(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Metadata"))
-        )
-        construct_metadata_df <- as.data.frame(df1)
+        construct_metadata_df <- readxl::read_excel(table_path, sheet = "Construct_Metadata", col_types = "text")
         
-        df2 <- suppressWarnings(
-            suppressWarnings(readxl::read_excel(table_path, sheet = "Construct_Counts"))
-        )
-        counts_df <- as.data.frame(df2)
+        counts_df <- readxl::read_excel(table_path, sheet = "Construct_Counts")
 
-
-        # Set first column as rownames then delet first column
-        # counts_matrix <- data.matrix(counts_df[-1])
-        # rownames(counts_matrix) <- counts_df[1]
-        rownames(counts_df) <- counts_df[, 1]
-        counts_df <- counts_df[, -1]
-        counts_matrix <- as.matrix(counts_df)
-
-        print("NEW COUNTS HEAD DEBUG")
-        print(head(counts_matrix))
-
+        # Drops the first column, retaining only numeric/count data.
+        counts_matrix <- as.matrix(counts_df[, -1])
+        # Accesses the first column of counts_df as a vector to get barcodes
+        rownames(counts_matrix) <- counts_df[[1]]
 
         dset <- SummarizedExperiment(
             assays = list(counts = counts_matrix),
