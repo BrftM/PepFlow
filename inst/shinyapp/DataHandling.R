@@ -2,7 +2,7 @@ DataHandling <- R6Class("DataHandling",
     public = list(
         
 
-    #' @return Dataframe List
+    #' @return SummarizedExperiment for differential expression
     transform_xlsx = function(table_path) {
         
         samples_df <- readxl::read_excel(table_path, sheet = "Samples", col_types = "text")

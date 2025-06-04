@@ -1,17 +1,3 @@
-## Class system (R6Class)
-library(R6)
-## UI/server logic
-library(shiny)
-## Data wrangling (dplyr, tibble, purrr)
-library(dplyr)
-## Static plotting
-library(ggplot2)
-library(ggpp)
-
-## Interactive plots
-library(plotly)
-
-#Define the DifferentialExpression class
 DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
@@ -30,25 +16,18 @@ DifferentialExpression <- R6Class("DifferentialExpression",
     run_differential_expression = function(dset, ref_group, comp_group) {
         message("Step 2: Performing differential expression analysis")
         
-        # Apply make.names to match factor levels of DESeq2
-        print(paste("Compare", ref_group, "vs.", comp_group))
         cfg <- list(c(comp_group, ref_group))
 
         runjs("document.getElementById('status_4').innerText = 'Step 3/9 - Perform diff_expr';")
         
         res <- tryCatch({
-            # Attempt to run the function
-            print(length(unique(dset$patient)))
-
             pepitope::screen_calc(dset, cfg)
         }, error = function(e) {
-            # Show the error to the user via shinyalert
             shinyalert(
                 title = "Error",
                 text = paste("An error occurred:", e$message),
                 type = "error"
             )
-        # Return NULL (or another fallback value)
         return(NULL)
         })
         
@@ -101,10 +80,9 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             missing_sheets <- setdiff(required_sheets, sheet_names)
 
             if (length(missing_sheets) > 0) {
-                # Display an error message indicating missing sheets
+
                 runjs(paste("document.getElementById('status_4').innerText = 'Error missing sheet: ", paste(missing_sheets, collapse = ", "), "';", sep = ""))
 
-                # Optionally, disable or hide further controls to prevent the user from continuing with the analysis
                 shinyalert(
                         title = "Missing Sheet(s)!", 
                         text = paste("Error missing sheet in all-metrics file: ", paste(missing_sheets, collapse = ", ")),
@@ -114,7 +92,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 updateSelectInput(inputId = "ref_group", choices = NULL)
                 updateSelectInput(inputId = "comp_group", choices = NULL)
 
-                return(NULL)  # Stop further processing if sheets are missing
+                return(NULL) 
             }
 
             samples_df <- as.data.frame(
@@ -122,7 +100,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             )
 
 
-            # Select only unique origins to make it selectable
+            # Select only unique origins for display of comparison choices
             origins <- unique(samples_df$origin)
             
             if (length(origins) <2) {
@@ -136,7 +114,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 return(NULL)
             
             } else {
-                # Use 'origin' for grouping
                 updateSelectInput(inputId = "ref_group", choices = origins, selected = origins[1])
                 updateSelectInput(inputId = "comp_group", choices = origins, selected = origins[2])
                 runjs("document.getElementById('status_4').innerText = 'Two distinct origins provided.';")
@@ -211,17 +188,20 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 )
                 return(NULL)
             }
-
-            dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
             
-            # Run the differential expression analysis
+            # Transform peptide table into SummarizedExperiment object
+            dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
+                
             res_list <- self$run_differential_expression(dset, input$ref_group , input$comp_group )
         
             runjs("document.getElementById('status_4').innerText = 'Step 7/9 - Analysis completed successfully';")
             
 
-            # Extract the comparison name from the configuration
+            # Extract the comparison name from the configuration of the differential expression
             comparison_name <- paste(input$comp_group, "vs", input$ref_group)
+            
+
+            
 
             # Create the 'text' column in res_list$res
             res_list$res[[1]]$text <- with(res_list$res[[1]], sprintf(
@@ -252,42 +232,36 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 }
             })
     
-            # Provide the PDF file for download the plot
-            output$download_pdf <- downloadHandler(
-                filename = function() {
-                    paste0("Differential_Expression_Result_", Sys.Date(), ".pdf")
-                },
-                content = function(file) {
-                    # Create a temporary file for the plot
-                    temp_plot <- tempfile(fileext = ".pdf")
-                    
-                    # Create a static version of the plot using ggplot2
-                    pdf(temp_plot, width = 8, height = 6)  # Open PDF device
-                    print(plt)  # Print the ggplot object directly
-                    dev.off()  # Close PDF device
-
-                    # Copy the plot to the desired file location
-                    file.copy(temp_plot, file, overwrite = TRUE)
-                }
-            )
+            
 
 
             # Flatten each comparison and tag with sample name to be able to export proper as table
-            #export_result <- self$dataHandling$summarize_full_diff_expr(res_list$res)
             # Drop columns that are completely NA
             cleaned_df <- res_list$res[[comparison_name]] %>%
                 select_if(~ !all(is.na(.)))
             
-            # Print the cleaned data frame
-            print("Cleaned_df for export:")
-            print(head(cleaned_df))
-
             shinyjs::show("export_plot_data")
+
+
+            output$download_pdf <- downloadHandler(
+            filename = function() {
+                paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_",   comparison_name, ".pdf")
+            },
+            content = function(file) {
+                # Add comparison_name to plot title
+                plot_with_title <- plt + ggtitle(paste("Differential Expression:", "_patient_", unique(dset$patient), "_",   comparison_name))
+
+                # Write plot to PDF
+                pdf(file, width = 8, height = 6)
+                print(plot_with_title)
+                dev.off()
+            }
+            )
 
             # Export table
             output$download_plot_data <- downloadHandler(
             filename = function() {
-                paste0("diff_expression_summary_", Sys.Date(), "_", comparison_name, ".xlsx")
+                paste0("diff_expression_summary_", Sys.Date(), " Patient ", unique(dset$patient), " ",  comparison_name, ".xlsx")
             },
             content = function(file) {
                 # Create a named list where the name is set using the variable comparison_name
