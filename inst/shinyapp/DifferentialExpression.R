@@ -232,9 +232,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 }
             })
     
-            
-
-
             # Flatten each comparison and tag with sample name to be able to export proper as table
             # Drop columns that are completely NA
             cleaned_df <- res_list$res[[comparison_name]] %>%
