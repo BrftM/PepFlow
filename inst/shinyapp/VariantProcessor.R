@@ -13,35 +13,40 @@ VariantProcessor <- R6Class("VariantProcessor",
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
       self$asm@seqinfo@genome[] <- "GRCh38"
-      self$rv <- reactiveValues(report_data = list(), sheet_names = NULL)
+      self$rv <- reactiveValues(report_data = list())
       
       self$dataHandling <- dataHandling
     },
 
     process_vcf = function(vcf_file) {
-      runjs("document.getElementById('status_1').innerText = 'Step 1/11 - Read VcF as VRanges...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 2/8 - Read VcF as VRanges...';")
 
-
+      # Reading and filtering mutations
       vr1 <- pepitope::readVcfAsVRanges(vcf_file) |>
         pepitope::filter_variants(min_cov=2, min_af=0.05, pass=TRUE, chrs="default")
 
-      runjs("document.getElementById('status_1').innerText = 'Step 2/11 - Annotate coding...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
+      # Annotating and subsetting expressed variants
       ann <- pepitope::annotate_coding(vr1, self$ens106, self$asm)  
-
-      runjs("document.getElementById('status_1').innerText = 'Step 4/11 - Subset context...';")
       subs <- ann |>
         pepitope::subset_context(15)
 
-      runjs("document.getElementById('status_1').innerText = 'Step 5/11 Tiling cDNAs of interest into smaller peptides ...';")
+      runjs("document.getElementById('status_1').innerText = 'Step 4/8 Tiling cDNAs of interest into smaller peptides ...';")
+      # Tiling cDNAs of interest into smaller peptides
       tiled <- pepitope::make_peptides(subs) |>
         pepitope::pep_tile() |>
         pepitope::remove_cutsite(BbsI="GAAGAC")
 
 
-      runjs("document.getElementById('status_1').innerText = 'Step 6/11 - Make report...';")
-      # Put all sheets into reactive value to work with globally
+      runjs("document.getElementById('status_1').innerText = 'Step 5/8 - Make report...';")
+      # Put all sheets of Report into reactive value to work with globally
       self$rv_sheet$report <- tryCatch({
         pepitope::make_report(vars=ann, subs=subs, tiled=tiled)
+        shinyalert(
+          title = "Report completed", 
+          text = paste("Barcodes can be added in sheet \"93 nt Peptides.\""),
+          type = "success"
+        )
       }, error = function(e) {
         warning(paste("Error in make_report:", e$message))
           shinyalert(
@@ -51,11 +56,10 @@ VariantProcessor <- R6Class("VariantProcessor",
           )
         return(NULL)
       })
-
-      runjs("document.getElementById('status_1').innerText = 'Step 9/11 - Add barcodes or download';")
     },
 
     display_table = function(output, input) {
+      runjs("document.getElementById('status_1').innerText = 'Step 7/8 - Add barcodes or download';")
       output$dynamic_table <- renderUI({
         req(self$rv_sheet$report)
 
@@ -123,7 +127,7 @@ VariantProcessor <- R6Class("VariantProcessor",
               self$rv_sheet$report[["93 nt Peptides"]] <- df
               print(head(self$rv_sheet$report[["93 nt Peptides"]]))
 
-              runjs("document.getElementById('status_1').innerText = 'Step 10/11 - Barcodes added!';")
+              runjs("document.getElementById('status_1').innerText = 'Step 8/8 - Barcodes added!';")
 
               output[[ns("datatable")]] <- renderDT({
                 datatable(df, editable = FALSE,
@@ -171,13 +175,12 @@ VariantProcessor <- R6Class("VariantProcessor",
       observeEvent(input$process, {
         req(input$vcf_file)
 
-        runjs("document.getElementById('status_1').innerText = 'Step 11/11 - Processing VCF file...';")
+        runjs("document.getElementById('status_1').innerText = 'Step 1/8 - Processing VCF file...';")
+
         self$process_vcf(input$vcf_file$datapath)
-        shinyalert(
-            title = "Count completed", 
-            text = paste("Have fun checking the results! "),
-            type = "success"
-        )
+
+        runjs("document.getElementById('status_1').innerText = 'Step 6/8 - VCF file processed';")
+
         self$display_table(output, input)
       })
       
