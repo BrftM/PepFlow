@@ -1,12 +1,3 @@
-library(R6)
-library(shiny)
-
-# Read xlsx file
-library(readxl)
-
-library(SummarizedExperiment)
-
-# Define the Test class
 DataHandling <- R6Class("DataHandling",
     public = list(
         
