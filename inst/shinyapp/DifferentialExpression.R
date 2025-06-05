@@ -259,7 +259,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             },
             content = function(file) {
                 # Add comparison_name to plot title
-                plot_with_title <- plt + ggtitle(paste("Differential Expression:", "_patient_", unique(dset$patient), "_",   comparison_name))
+                plot_with_title <- plt + ggtitle(paste("Differential Expression:", " Patient ", unique(dset$patient), " ",   comparison_name))
 
                 # Write plot to PDF
                 pdf(file, width = 8, height = 6)

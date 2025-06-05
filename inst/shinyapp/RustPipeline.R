@@ -147,12 +147,12 @@ RustPipeline <- R6Class("RustPipeline",
                   <p>Upload or \"Create Manually\" a sample sheet with the following format:</p>
                   <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
                       sample_id     patient       rep origin    barcode
-          1           lib1          pat2+common   1   Library   AAGACCA
-          2           lib2          pat3          1   Library   CCAGTGT
-          3           mock1         pat1+common   1   Mock      TGAGTCC
-          4           mock2         pat1+common   2   Mock      CAAGATG
-          5           screen1       pat1+common   1   Sample    AACCGAC
-          6           screen2       pat1+common   2   Sample    AGAATCG
+                      lib1          pat2+common   1   Library   AAGACCA
+                      lib2          pat3          1   Library   CCAGTGT
+                      mock1         pat1+common   1   Mock      TGAGTCC
+                      mock2         pat1+common   2   Mock      CAAGATG
+                      screen1       pat1+common   1   Sample    AACCGAC
+                      screen2       pat1+common   2   Sample    AGAATCG
                   </pre>
                   <p>The barcode in the table is not the Oligo barcode of the constructs but the sample barcode!</p>
 
