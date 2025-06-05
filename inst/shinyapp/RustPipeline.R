@@ -93,13 +93,7 @@ RustPipeline <- R6Class("RustPipeline",
             ),
             conditionalPanel(
               condition = "input.metadata_option == 'Create Manually'",
-              textInput("sample_id", "Sample ID"),
-              textInput("patient", "Patient"),
-              textInput("rep", "Rep"),
-              textInput("origin", "Origin"),
-              textInput("barcode", "Barcode"),
-              actionButton("add_row", "Add Row"),
-              DTOutput("metadata_table"),
+              actionButton("open_metadata_modal", "Create Sample sheet manually or update it"),
               textInput("export_filename", "Export Filename", value = "metadata.tsv"),
               downloadButton("export_table", "Export Table")
             ),
@@ -229,6 +223,25 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # 1.3. Option-Create: create sample via table 
+
+      observeEvent(input$open_metadata_modal, {
+          showModal(
+            modalDialog(
+              title = "Add Sample Metadata",
+              textInput("sample_id", "Sample ID"),
+              textInput("patient", "Patient"),
+              textInput("rep", "Replicate"),
+              textInput("origin", "Origin"),
+              textInput("barcode", "Barcode"),
+              actionButton("add_row", "Add Row"),
+              DTOutput("metadata_table"),
+              easyClose = TRUE,
+              footer = NULL
+            )
+          )
+        })
+
+
       metadata_data <- reactiveVal(data.frame(sample_id = character(), patient = character(), rep = character(), origin = character(), barcode = character(), stringsAsFactors = FALSE))
       
       observeEvent(input$add_row, {
@@ -456,7 +469,29 @@ RustPipeline <- R6Class("RustPipeline",
           fastq_path <- shQuote(fastq_path)
         }
 
-        tmp_dir <- pepitope::demux_fq(fastq_path, samples_tsv, input$read_structures)
+        # Step 1: Read the TSV into a data frame
+        samples <- readr::read_tsv(samples_tsv)
+
+        # Step 2: Filter only selected patients from sample sheet
+        filtered_samples <- samples[samples$patient %in% names(selected_tables), ]
+
+
+        # Optional: Warn if no patients matched
+        if (nrow(filtered_samples) == 0) {
+          warning("No matching patients found in samples_tsv for selected_tables.")
+          shinyalert(
+            title = "Error",
+            text = paste("No matching patients found in samples_tsv for selected_tables"),
+            type = "error"
+          )
+        }
+
+        # Step 3: Write filtered data to a temp file
+        filtered_tsv <- tempfile(fileext = ".tsv")
+        readr::write_tsv(filtered_samples, filtered_tsv)
+
+        # Step 4: Run demultiplexing with the filtered TSV
+        tmp_dir <- pepitope::demux_fq(fastq_path, filtered_tsv, input$read_structures)
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
         
