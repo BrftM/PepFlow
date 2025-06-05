@@ -79,7 +79,13 @@ RustPipeline <- R6Class("RustPipeline",
             width = 3,
             useShinyjs(),  # Include ShinyJS
             actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
-            tags$h4("1. Metadata-section"),
+            tags$h4("1. Peptide-table-section"),
+            checkboxGroupInput("selected_tables", "", choices = NULL), 
+            fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
+            div(id= "show_edit_sheets", style = "display: none;",
+              actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
+            ),
+            tags$h4("2. Metadata-section"),
             radioButtons("metadata_option", "Sample Metadata Source:", choices = c("Upload File", "Create Manually")),
             conditionalPanel(
               condition = "input.metadata_option == 'Upload File'",
@@ -97,14 +103,6 @@ RustPipeline <- R6Class("RustPipeline",
               textInput("export_filename", "Export Filename", value = "metadata.tsv"),
               downloadButton("export_table", "Export Table")
             ),
-
-            tags$h4("2. Peptide-table-section"),
-            checkboxGroupInput("selected_tables", "", choices = NULL), 
-            fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
-            div(id= "show_edit_sheets", style = "display: none;",
-              actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
-            ),
-
             tags$h4("3. Fastq-section"),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
@@ -112,7 +110,11 @@ RustPipeline <- R6Class("RustPipeline",
             #numericInput("max_mismatches", "Max Mismatches", value = 0, min = 0, max = 10),
             tags$hr(),
 
-            actionButton("run_pipeline", "Run Pipeline"),
+            div(id= "show_run_pipeline", style = "display: none;",
+              actionButton("run_pipeline", "Run Pipeline"),
+            ),
+
+           
             div(id= "export_metrics", style = "display: none;",
               downloadButton("download_new_peptide_table", "Download Results: 2-all-metrics.xlsx"),
             ),
@@ -142,21 +144,7 @@ RustPipeline <- R6Class("RustPipeline",
               title = "📘 Help: Upload Instructions",
               HTML(
                 "<div style='line-height: 1.5;'>
-
-                  <h4>🧾 1. Sample Sheet</h4>
-                  <p>Upload or \"Create Manually\" a sample sheet with the following format:</p>
-                  <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
-                      sample_id     patient       rep origin    barcode
-                      lib1          pat2+common   1   Library   AAGACCA
-                      lib2          pat3          1   Library   CCAGTGT
-                      mock1         pat1+common   1   Mock      TGAGTCC
-                      mock2         pat1+common   2   Mock      CAAGATG
-                      screen1       pat1+common   1   Sample    AACCGAC
-                      screen2       pat1+common   2   Sample    AGAATCG
-                  </pre>
-                  <p>The barcode in the table is not the Oligo barcode of the constructs but the sample barcode!</p>
-
-                  <h4>🔬 2. Peptide Table</h4>
+                  <h4>🔬 1. Peptide Table</h4>
                   <p>Upload a peptide table (one sheet per patient), with columns:</p>
                   <code>var_id, mut_id, pep_id, pep_type, gene_name, gene_id, tx_id, tiled, n_tiles, nt, peptide, barcode</code>
                   <p>
@@ -181,10 +169,24 @@ RustPipeline <- R6Class("RustPipeline",
           chr2:208248388_G/A    IDH1_R132L IDH1_R132    ref        IDH1       ...  AACATAACGAGG AACC...
                   </pre>
 
-                  <h4>📂 3. FASTQ File</h4>
-                  <p>Upload a FASTQ file containing sequencing results from co-culture experiments.</p>
+                  <h4>🧾 2. Sample Sheet</h4>
+                  <p>Upload or \"Create Manually\" a sample sheet with the following format:</p>
+                  <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
+                      sample_id     patient       rep origin    barcode
+                      lib1          pat2+common   1   Library   AAGACCA
+                      lib2          pat3          1   Library   CCAGTGT
+                      mock1         pat1+common   1   Mock      TGAGTCC
+                      mock2         pat1+common   2   Mock      CAAGATG
+                      screen1       pat1+common   1   Sample    AACCGAC
+                      screen2       pat1+common   2   Sample    AGAATCG
+                  </pre>
+                  <p>The barcode in the table is not the Oligo barcode of the constructs but the sample barcode!</p>
 
-                </div>"
+                  
+
+                  <h4>📂 3. FASTQ File</h4>
+                  <p>Upload a FASTQ file containing sequencing results from co-culture experiments.  The read structure for the fastq sequences follows the demultiplexing format denoted as <strong>\"7B+T\"</strong>, indicating that the first 7 base pairs represent the sample barcode (<strong>\"B\"</strong>), followed by the target sequence (<strong>\"T\"</strong>)</p>
+              </div>"
               ),
               easyClose = TRUE,
               size = "l",
@@ -228,6 +230,7 @@ RustPipeline <- R6Class("RustPipeline",
 
       # 1.3. Option-Create: create sample via table 
       metadata_data <- reactiveVal(data.frame(sample_id = character(), patient = character(), rep = character(), origin = character(), barcode = character(), stringsAsFactors = FALSE))
+      
       observeEvent(input$add_row, {
         new_row <- data.frame(sample_id = input$sample_id, patient = input$patient, rep = input$rep, origin = input$origin, barcode = input$barcode, stringsAsFactors = FALSE)
         metadata_data(rbind(metadata_data(), new_row))
@@ -391,6 +394,17 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # Step 4: Run pipeline
+      observeEvent({
+        fastq_file_path()
+        peptide_table_path()
+        metadata_data
+      }, {
+        req(fastq_file_path(), peptide_table_path(), metadata_data)
+        # Show run button if all files are provided to enhance usability
+        shinyjs::show("show_run_pipeline")
+      })
+
+
       observeEvent(input$run_pipeline, {
         req(fastq_file_path(), peptide_table_path())
 
@@ -415,7 +429,9 @@ RustPipeline <- R6Class("RustPipeline",
           req(samples_tsv_path())
           samples_tsv <- samples_tsv_path()
         } else {
+          req(metadata_data())  # Ensure it exists
           samples_tsv <- tempfile(fileext = ".tsv")
+          readr::write_tsv(metadata_data(), samples_tsv)
         }
       
          # Step 1: Run fqtk
@@ -444,13 +460,6 @@ RustPipeline <- R6Class("RustPipeline",
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
         
-        ### Check for results??? And alert if someting is missing?
-        print(list.files(tmp_dir, pattern="\\.fq\\.gz$"))
-        result_files = list.files(tmp_dir, pattern="\\.fq\\.gz$")
-        print("All files")
-        print(list.files(tmp_dir))
-     
-
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
       
