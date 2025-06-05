@@ -334,10 +334,9 @@ RustPipeline <- R6Class("RustPipeline",
         removeModal() 
         # Delete pre-selection from default etc. to mitigate side effects
         self$rv$selected_constructs <- NULL
-
-        selected_sheets(input$modal_selected_sheets)  # ✅ update global value of selected sheets
+ 
         sel <- input$modal_selected_sheets
-        selected_sheets(sel)
+        selected_sheets(sel) # ✅ update global value of selected sheets
 
         rf <- list()
         for (sheet in names(self$rv$all_constructs)) {
