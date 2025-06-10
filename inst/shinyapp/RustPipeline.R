@@ -65,9 +65,6 @@ RustPipeline <- R6Class("RustPipeline",
 
       # Flatten the list structure if needed (combine lists from multiple files)
       all_constructs <- unlist(all_constructs, recursive = FALSE)
-
-      print("Show peptide table head post mod")
-      print(head(all_constructs))
       
       return(all_constructs)
     }, 
@@ -86,22 +83,11 @@ RustPipeline <- R6Class("RustPipeline",
               actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
             ),
             tags$h4("2. Metadata-section"),
-            radioButtons("metadata_option", "Sample Metadata Source:", choices = c("Upload File", "Create Manually")),
-            conditionalPanel(
-              condition = "input.metadata_option == 'Upload File'",
-              fileInput("samples_tsv", "Please select the samples.tsv file"),
-            ),
-            conditionalPanel(
-              condition = "input.metadata_option == 'Create Manually'",
-              actionButton("open_metadata_modal", "Create Sample sheet manually or update it"),
-              textInput("export_filename", "Export Filename", value = "metadata.tsv"),
-              downloadButton("export_table", "Export Table")
-            ),
+            fileInput("samples_tsv", "Please select the samples.tsv file"),
             tags$h4("3. Fastq-section"),
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
             verbatimTextOutput("fastq_file_path"),
             textInput("read_structures", "Read Structures", value = "7B+T"),
-            #numericInput("max_mismatches", "Max Mismatches", value = 0, min = 0, max = 10),
             tags$hr(),
 
             div(id= "show_run_pipeline", style = "display: none;",
@@ -164,7 +150,7 @@ RustPipeline <- R6Class("RustPipeline",
                   </pre>
 
                   <h4>🧾 2. Sample Sheet</h4>
-                  <p>Upload or \"Create Manually\" a sample sheet with the following format:</p>
+                  <p>Upload a sample sheet with the following format:</p>
                   <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
                       sample_id     patient       rep origin    barcode
                       lib1          pat2+common   1   Library   AAGACCA
@@ -195,7 +181,7 @@ RustPipeline <- R6Class("RustPipeline",
       # 1. Step: Sample-handling
       # 1.1. get Path
       samples_tsv_path <- reactive({
-        req(input$metadata_option == "Upload File")
+        req(input$samples_tsv)
         input$samples_tsv$datapath
       })
       
@@ -221,49 +207,6 @@ RustPipeline <- R6Class("RustPipeline",
           )
         } 
       })
-
-      # 1.3. Option-Create: create sample via table 
-
-      observeEvent(input$open_metadata_modal, {
-          showModal(
-            modalDialog(
-              title = "Add Sample Metadata",
-              textInput("sample_id", "Sample ID"),
-              textInput("patient", "Patient"),
-              textInput("rep", "Replicate"),
-              textInput("origin", "Origin"),
-              textInput("barcode", "Barcode"),
-              actionButton("add_row", "Add Row"),
-              DTOutput("metadata_table"),
-              easyClose = TRUE,
-              footer = NULL
-            )
-          )
-        })
-
-
-      metadata_data <- reactiveVal(data.frame(sample_id = character(), patient = character(), rep = character(), origin = character(), barcode = character(), stringsAsFactors = FALSE))
-      
-      observeEvent(input$add_row, {
-        new_row <- data.frame(sample_id = input$sample_id, patient = input$patient, rep = input$rep, origin = input$origin, barcode = input$barcode, stringsAsFactors = FALSE)
-        metadata_data(rbind(metadata_data(), new_row))
-        output$metadata_table <- renderDT({
-          datatable(metadata_data(), editable = "cell", rownames = FALSE)
-        }, server = FALSE)
-      })
-      output$metadata_table <- renderDT({
-        datatable(metadata_data(), editable = "cell", rownames = FALSE)
-      }, server = FALSE)
-
-      output$export_table <- downloadHandler(
-        filename = function() {
-          input$export_filename
-        },
-        content = function(file) {
-          write.table(metadata_data(), file, sep = "\t", row.names = FALSE, quote = FALSE)
-        }
-      )
-
 
       # 2. Step: Fastq-handling
       volumes = getVolumes()
@@ -410,16 +353,18 @@ RustPipeline <- R6Class("RustPipeline",
       observeEvent({
         fastq_file_path()
         peptide_table_path()
-        metadata_data
+        samples_tsv_path()
       }, {
-        req(fastq_file_path(), peptide_table_path(), metadata_data)
+        req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
         # Show run button if all files are provided to enhance usability
         shinyjs::show("show_run_pipeline")
       })
 
 
       observeEvent(input$run_pipeline, {
-        req(fastq_file_path(), peptide_table_path())
+        req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
+
+        samples_tsv <- samples_tsv_path()
 
         error_occurred <- FALSE  # flag to track error
         # Set tables from selection
@@ -437,16 +382,6 @@ RustPipeline <- R6Class("RustPipeline",
         })
         if (error_occurred) return()
 
-        # Check if sample was uploaded or has to be created
-        if (input$metadata_option == "Upload File") {
-          req(samples_tsv_path())
-          samples_tsv <- samples_tsv_path()
-        } else {
-          req(metadata_data())  # Ensure it exists
-          samples_tsv <- tempfile(fileext = ".tsv")
-          readr::write_tsv(metadata_data(), samples_tsv)
-        }
-      
          # Step 1: Run fqtk
         runjs("document.getElementById('status_2').innerText = 'Step 1/10 - Running fqtk demux...';")
         # Future optional: max_mismatches = input$max_mismatches,
@@ -513,12 +448,6 @@ RustPipeline <- R6Class("RustPipeline",
         # rowData(dset) – access the construct metadata as data.frame
         # assay(dset) – access the construct counts as matrix
         # Step 2: Display fqtk metrics
-        print("head dset")
-        print(head(dset))
-        print("-------------")
-        print(head(colData(dset)))
-        print(head(rowData(dset)))
-        print(head(assay(dset)))
 
         output$sample_meta_data <- renderTable({
           colData(dset)
@@ -586,7 +515,6 @@ RustPipeline <- R6Class("RustPipeline",
 
         # Show display tabs when all the plots are done not before
         shinyjs::show("export_metrics")
-        #shinyjs::show("metrics_tables")
         shinyalert(
                 title = "Count completed", 
                 text = paste("Have fun checking the results! "),
