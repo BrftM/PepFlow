@@ -394,15 +394,8 @@ RustPipeline <- R6Class("RustPipeline",
 
         # Delete them
         unlink(files_to_delete, recursive = TRUE, force = TRUE)
-
-        
+  
         fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath
-
-        # Check for space(s) in path and replace if present
-        if (grepl(" ", fastq_path)) {
-
-          fastq_path <- shQuote(fastq_path)
-        }
 
         # Step 1: Read the TSV into a data frame
         samples <- readr::read_tsv(samples_tsv)
