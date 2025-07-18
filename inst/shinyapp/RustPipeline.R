@@ -24,6 +24,7 @@ RustPipeline <- R6Class("RustPipeline",
     # Containts rv$all_construcs
     rv = reactiveValues(all_constructs = NULL),    
     selected_sheets = reactiveVal(NULL),
+    test_mode = FALSE,
     
     prepare_peptide_table = function(peptide_table_paths) {
 
@@ -76,6 +77,7 @@ RustPipeline <- R6Class("RustPipeline",
             width = 3,
             useShinyjs(),  # Include ShinyJS
             actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
+            checkboxInput("use_test_data", "Use test data", value = FALSE),
             tags$h4("1. Peptide-table-section"),
             checkboxGroupInput("selected_tables", "", choices = NULL), 
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
@@ -89,11 +91,7 @@ RustPipeline <- R6Class("RustPipeline",
             verbatimTextOutput("fastq_file_path"),
             textInput("read_structures", "Read Structures", value = "7B+T"),
             tags$hr(),
-
-            div(id= "show_run_pipeline", style = "display: none;",
-              actionButton("run_pipeline", "Run Pipeline"),
-            ),
-
+            actionButton("run_pipeline", "Run Pipeline"),
            
             div(id= "export_metrics", style = "display: none;",
               downloadButton("download_new_peptide_table", "Download Results: 2-all-metrics.xlsx"),
@@ -121,9 +119,25 @@ RustPipeline <- R6Class("RustPipeline",
 
       observeEvent(input$help_btn_2, {
             showModal(modalDialog(
-              title = "📘 Help: Upload Instructions",
+              title = "📘 Help: Upload Instructions or Use Test Data",
               HTML(
                 "<div style='line-height: 1.5;'>
+                  <h4>🚀 Workflow Trigger Options</h4>
+                  <p>You can run the workflow in two ways:</p>
+                  <ol>
+                    <li><strong>Use your own data:</strong> Upload the peptide table, sample sheet, and FASTQ file.</li>
+                    <li><strong>Use built-in test data:</strong> Enable the <code>Use test data</code> checkbox to run a demo pipeline.</li>
+                  </ol>
+
+                  <h4>🧪 Test Data from the following sources and description in the following section</h4>
+                    <ul>
+                      <li>🔬 1. Peptide Table: Generated via <code>pepitope::example_peptides()</code></li>
+                      <li>🧾 2. Sample Sheet: <code>my_samples.tsv</code> included in <code>pepitope</code></li>
+                      <li>📂 3. FASTQ File Simulated via <code>example_fastq()</code> function</li>
+                    </ul>
+
+
+
                   <h4>🔬 1. Peptide Table</h4>
                   <p>Upload a peptide table (one sheet per patient), with columns:</p>
                   <code>var_id, mut_id, pep_id, pep_type, gene_name, gene_id, tx_id, tiled, n_tiles, nt, peptide, barcode</code>
@@ -350,60 +364,77 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # Step 4: Run pipeline
-      observeEvent({
-        fastq_file_path()
-        peptide_table_path()
-        samples_tsv_path()
-      }, {
-        req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
-        # Show run button if all files are provided to enhance usability
-        shinyjs::show("show_run_pipeline")
-      })
-
-
       observeEvent(input$run_pipeline, {
-        req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
+        use_test <- isTRUE(input$use_test_data)
 
-        samples_tsv <- samples_tsv_path()
+          if (use_test) {
+            self$test_mode <- TRUE
+            runjs("document.getElementById('status_2').innerText = 'Step 0/10 - Loading test data...';")
 
-        error_occurred <- FALSE  # flag to track error
-        # Set tables from selection
-        selected_tables <- self$rv$selected_constructs
+            tryCatch({
+              # Load barcodes
+              lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+              self$rv$valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
 
-        tryCatch({
-          pepitope:::merge_constructs(selected_tables)
-        }, error = function(e) {
-          shinyalert(
-            title = "Error",
-            text = paste("An error occurred because of overlapping barcodes:", e$message),
-            type = "error"
-          )
-          error_occurred <<- TRUE  # set flag from error handler
-        })
-        if (error_occurred) return()
+              # Load peptide constructs
+              self$rv$all_constructs <- pepitope::example_peptides(self$rv$valid_barcodes)
+              self$rv$selected_constructs <- self$rv$all_constructs
+              selected_tables <- self$rv$selected_constructs
 
-         # Step 1: Run fqtk
+              # Visualize barcode overlap
+              output$subplot_barcodes <- renderPlot({
+                pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
+              })
+
+              # Load built-in sample sheet and fastq file
+              sample_sheet <- system.file("my_samples.tsv", package = "pepitope")
+              filtered_samples <- readr::read_tsv(sample_sheet, show_col_types = FALSE)
+
+              fastq <- pepitope::example_fastq(sample_sheet, self$rv$all_constructs)
+             
+              # Store filtered samples TSV temporarily
+              filtered_tsv <- tempfile(fileext = ".tsv")
+              readr::write_tsv(filtered_samples, filtered_tsv)
+
+              fastq_path <- fastq
+
+              print("fastq_path")
+              print(fastq_path)
+
+              runjs("document.getElementById('status_2').innerText = 'Step 0/10 - Loading test data completed';")
+
+            }, error = function(e) {
+              shinyalert(
+                title = "Failed to load test data",
+                text = paste("An error occurred during test data setup:", e$message),
+                type = "error"
+              )
+              status_2("Test data loading failed.")
+              return()  # Exit the observeEvent early
+            })
+          } else {
+            self$test_mode <- FALSE
+
+            req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
+           
+            # Step 1: Read sample sheet
+            samples_tsv <- samples_tsv_path()
+            samples <- readr::read_tsv(samples_tsv)
+
+            selected_tables <- self$rv$selected_constructs
+
+            fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath
+            # Step 2: Filter only selected patients from sample sheet
+            filtered_samples <- samples[samples$patient %in% names(selected_tables), ]
+
+            # Step 3: Write filtered data to a temp file
+            filtered_tsv <- tempfile(fileext = ".tsv")
+            readr::write_tsv(filtered_samples, filtered_tsv)
+          }
+
+         # Step 4: Run fqtk
         runjs("document.getElementById('status_2').innerText = 'Step 1/10 - Running fqtk demux...';")
-        # Future optional: max_mismatches = input$max_mismatches,
-        tmp_dir <- tempdir()  # Or your custom temp directory path
-        # List all files and folders inside the temp directory
-        files_to_delete <- list.files(tmp_dir, full.names = TRUE, recursive = TRUE)
-        
-        # Exclude samples_tsv
-        files_to_delete <- files_to_delete[normalizePath(files_to_delete) != normalizePath(samples_tsv)]
-
-        # Delete them
-        unlink(files_to_delete, recursive = TRUE, force = TRUE)
-  
-        fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath
-
-        # Step 1: Read the TSV into a data frame
-        samples <- readr::read_tsv(samples_tsv)
-
-        # Step 2: Filter only selected patients from sample sheet
-        filtered_samples <- samples[samples$patient %in% names(selected_tables), ]
-
-
+       
         # Optional: Warn if no patients matched
         if (nrow(filtered_samples) == 0) {
           warning("No matching patients found in samples_tsv for selected_tables.")
@@ -414,34 +445,47 @@ RustPipeline <- R6Class("RustPipeline",
           )
         }
 
-        # Step 3: Write filtered data to a temp file
-        filtered_tsv <- tempfile(fileext = ".tsv")
-        readr::write_tsv(filtered_samples, filtered_tsv)
+        # Step 5: Run demultiplexing with the filtered TSV
+        tmp_dir <- tryCatch({
+          pepitope::demux_fq(fastq_path, filtered_tsv, input$read_structures)
+        }, error = function(e) {
+          shinyalert(
+            title = "Error during demultiplexing",
+            text = paste("An error occurred in 'demux_fq()':", e$message),
+            type = "error"
+          )
+          runjs("document.getElementById('status_2').innerText = 'Error during demultiplexing.';")
+          return(NULL)
+        })
 
-        # Step 4: Run demultiplexing with the filtered TSV
-        tmp_dir <- pepitope::demux_fq(fastq_path, filtered_tsv, input$read_structures)
+        # Stop if demuxing failed
+        if (is.null(tmp_dir)) return()
 
         runjs("document.getElementById('status_2').innerText = 'Step 2/10 - Fqtk demux finished';")
-        
+
         runjs("document.getElementById('status_2').innerText = 'Step 4/10 - Run guide-counter count...';")
 
-      
+        # Step 6: Count barcodes
         dset <- tryCatch({
           pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
         }, error = function(e) {
           shinyalert(
-            title = "Error",
-            text = paste("An error occurred while counting barcodes:", e$message),
+            title = "Error during barcode counting",
+            text = paste("An error occurred in 'count_bc()':", e$message),
             type = "error"
           )
-          error_occurred <<- TRUE  # set flag from error handler
+          runjs("document.getElementById('status_2').innerText = 'Error during barcode counting.';")
+          return(NULL)
         })
-        if (error_occurred) return()
+
+        # Stop if counting failed
+        if (is.null(dset)) return()
+
+
         # colData(dset) – access the sample metadata as data.frame
         # rowData(dset) – access the construct metadata as data.frame
         # assay(dset) – access the construct counts as matrix
         # Step 2: Display fqtk metrics
-
         output$sample_meta_data <- renderTable({
           colData(dset)
         })

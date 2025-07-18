@@ -74,10 +74,7 @@ VariantProcessor <- R6Class("VariantProcessor",
 
     display_table = function(output, input) {
       runjs("document.getElementById('status_1').innerText = 'Step 7/8 - Add barcodes or download';")
-
-      print("HAS TO BE NULL")
-      print(self$rv_sheet$report)
-
+      
       output$dynamic_table <- renderUI({
         req(self$rv_sheet$report)
 
