@@ -221,8 +221,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 return()
             }
             runjs("document.getElementById('status_4').innerText = 'Step 0/9 - Setup Required data...';")
-            ###
-            # STEP 1:
+
             dset <- tryCatch({
                 if (use_test_3) {
                     runjs("document.getElementById('status_4').innerText = 'Step 0/10 - Loading test data...';")
@@ -231,7 +230,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                         text = "Test mode is activated.",
                         type = "info"
                     )
-                    # Load internal data
                     lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
                     valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
                     constructs <- pepitope::example_peptides(valid_barcodes)
@@ -262,7 +260,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 if (is.null(dset)) return(runjs("document.getElementById('status_4').innerText = 'Error: Dset is NUll.';"))
 
             runjs("document.getElementById('status_4').innerText = 'Step 1/9 - Starting analysis...';")
-            # STEP 2: Run differential expression
+           
             res_list <- tryCatch({        
                 if (use_test_3) {  
                     res_list <- self$run_differential_expression(dset, "Mock", "Sample")
@@ -270,8 +268,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                     res_list
                 } else {  
                     res_list <- self$run_differential_expression(dset, input$ref_group , input$comp_group )
-                    # STEP 3: Build plot
-                    # Extract the comparison name from the configuration of the differential expression
                     comparison_name <- paste(input$comp_group, "vs", input$ref_group)
                     res_list
                 }
@@ -307,8 +303,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
     
             shinyjs::show("export_plot_data")
 
-
-            # Step: Export plot as PDF
             output$download_pdf <- downloadHandler(
                 filename = function() {
                     paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".pdf")
@@ -320,7 +314,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 }
             )
 
-            # Step: Export results table as XLSX
             output$download_plot_data <- downloadHandler(
                 filename = function() {
                     paste0("diff_expression_summary_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".xlsx")

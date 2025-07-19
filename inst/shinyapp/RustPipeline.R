@@ -21,11 +21,20 @@ library(pepitope)
 library(Biostrings)
 RustPipeline <- R6Class("RustPipeline",
   public = list(
-    # Containts rv$all_construcs
+
     rv = reactiveValues(all_constructs = NULL),    
     selected_sheets = reactiveVal(NULL),
     test_mode_2 = FALSE,
-    
+    lib = NULL,
+    valid_barcodes = NULL,
+
+    initialize = function(test_mode_2 = FALSE){
+      self$rv <- reactiveValues()
+      self$test_mode_2 <- test_mode_2
+      self$lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+      self$valid_barcodes <- readr::read_tsv(self$lib, col_names=FALSE)$X1
+    },
+        
     prepare_peptide_table = function(peptide_table_paths) {
 
       # Create a named list of data frames from each Excel file, using sheet names
@@ -75,7 +84,7 @@ RustPipeline <- R6Class("RustPipeline",
         sidebarLayout(
           sidebarPanel(
             width = 3,
-            useShinyjs(),  # Include ShinyJS
+            useShinyjs(),  
             actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
             checkboxInput("use_test_data_2", "Use test data", value = FALSE),
             tags$h4("1. Peptide-table-section"),
@@ -86,8 +95,7 @@ RustPipeline <- R6Class("RustPipeline",
             ),
             tags$h4("2. Metadata-section"),
             fileInput("samples_tsv", "Please select the samples.tsv file"),
-            tags$h4("3. Fastq-section"),
-            #fileInput("fastq_file", "Please select a FASTQ file", multiple = FALSE, accept = c(".fastq.gz", ".fastq")),
+            tags$h4("3. Fastq-section"),        
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE, accept = c(".fastq.gz", ".fastq")),
             verbatimTextOutput("fastq_file_path"),
             textInput("read_structures", "Read Structures", value = "7B+T"),
@@ -200,24 +208,24 @@ RustPipeline <- R6Class("RustPipeline",
         input$samples_tsv$datapath
       })
       
-      # 1.2. Option-Upload: observe path if upload and start checks for required columns
+      # 1.2. Upload: observe path if upload and start checks for required columns
       observeEvent(input$samples_tsv, {
-        req(input$samples_tsv)  # Ensure file input is not NULL
+        req(input$samples_tsv)  
         
         # If test mode was enabled, reset it and show alert
         if (isTRUE(input$use_test_data_2)) {
-        # Uncheck the test data checkbox
-        updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
+          # Uncheck the test data checkbox
+          updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
 
-        self$test_mode_2 <- FALSE
+          self$test_mode_2 <- FALSE
 
-        # Show user notification
-        shinyalert(
-            title = "Switched to real data",
-            text = "A samples sheet was uploaded. Test mode is now disabled.",
-            type = "info"
-        )
+          shinyalert(
+              title = "Switched to real data",
+              text = "A samples sheet was uploaded. Test mode is now disabled.",
+              type = "info"
+          )
         }
+
         # Read the TSV file
         samples_tsv <- tryCatch({
           read.delim(input$samples_tsv$datapath, header = TRUE, sep = "\t")
@@ -229,32 +237,29 @@ RustPipeline <- R6Class("RustPipeline",
           )
           return(NULL)
         })
-        # Define required columns
+
         required_columns <- c("sample_id", "patient", "rep", "origin", "barcode")
         
-        # Check for missing columns
         missing_columns <- setdiff(required_columns, colnames(samples_tsv))
     
         if (length(missing_columns) > 0) {
-          # Log the error message and button update using runjs
-        shinyalert(
-                title = "Missing Columns!", 
-                text = paste("Error: Missing columns in samples.tsv: ", paste(missing_columns, collapse = ", ")),
-                type = "error"
-          )
+          shinyalert(
+                  title = "Missing Columns!", 
+                  text = paste("Error: Missing columns in samples.tsv: ", paste(missing_columns, collapse = ", ")),
+                  type = "error"
+            )
         } 
       })
 
       # 2. Step: Fastq-handling
-      # This registers the input
+      ## This registers the input
       volumes = getVolumes()
       shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
 
       fastq_file_path <- reactive({
         req(input$fastq_file)
         
-        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath    
-        #input$fastq_file$datapath
+        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath           
       })
 
       observeEvent(input$fastq_file, {
@@ -264,12 +269,11 @@ RustPipeline <- R6Class("RustPipeline",
 
         # If test mode was enabled, reset it and show alert
         if (isTRUE(input$use_test_data_2)) {
-          # Uncheck the test data checkbox
+
           updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
 
           self$test_mode_2 <- FALSE
 
-          # Show user notification
           shinyalert(
               title = "Switched to real data",
               text = "A fastq file was uploaded. Test mode is now disabled.",
@@ -277,11 +281,6 @@ RustPipeline <- R6Class("RustPipeline",
           )
           }
       })
-      
-
-
-
-
 
       # 3. Step: Peptide-handling
       selected_sheets <- reactiveVal()
@@ -303,25 +302,19 @@ RustPipeline <- R6Class("RustPipeline",
 
           # If test mode was enabled, reset it and show alert
           if (isTRUE(input$use_test_data_2)) {
-          # Uncheck the test data checkbox
-          updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
+            updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
 
-          self$test_mode_2 <- FALSE
+            self$test_mode_2 <- FALSE
 
-          # Show user notification
-          shinyalert(
-              title = "Switched to real data",
-              text = "A peptide table was uploaded. Test mode is now disabled.",
-              type = "info"
-          )
+            shinyalert(
+                title = "Switched to real data",
+                text = "A peptide table was uploaded. Test mode is now disabled.",
+                type = "info"
+            )
           }
 
-          # Define valid barcodes
-          lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
-          self$rv$valid_barcodes <- readr::read_tsv(lib, col_names=FALSE)$X1
-
           output$subplot_barcodes <- renderPlot({
-            pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
+            pepitope::plot_barcode_overlap(self$rv$all_constructs, self$valid_barcodes)
           })
           
           shinyjs::show("show_edit_sheets")
@@ -371,7 +364,7 @@ RustPipeline <- R6Class("RustPipeline",
         self$rv$selected_constructs <- NULL
  
         sel <- input$modal_selected_sheets
-        selected_sheets(sel) # ✅ update global value of selected sheets
+        selected_sheets(sel) 
 
         rf <- list()
         for (sheet in names(self$rv$all_constructs)) {
@@ -408,21 +401,19 @@ RustPipeline <- R6Class("RustPipeline",
         names(processed) <- sel
         self$rv$selected_constructs <- processed
 
-        
-          # Re-render the barcode overlap plot
-          output$subplot_barcodes <- renderPlot({
-            tryCatch({
-              pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+        output$subplot_barcodes <- renderPlot({
+          tryCatch({
+            pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$valid_barcodes)
 
-            }, error = function(e) {
-              shinyalert(
-                title = "Duplicate barcodes or processing error",
-                text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
-                              "\nPlease review the sheet structure and ensure unique barcodes."),
-                type = "error"
-              )
-            })
+          }, error = function(e) {
+            shinyalert(
+              title = "Duplicate barcodes or processing error",
+              text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
+                            "\nPlease review the sheet structure and ensure unique barcodes."),
+              type = "error"
+            )
           })
+        })
       })
 
       # Step 4: Run pipeline
@@ -440,17 +431,14 @@ RustPipeline <- R6Class("RustPipeline",
             )
 
             tryCatch({
-              # Load barcodes
-              lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
-              self$rv$valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
 
               # Load peptide constructs
-              self$rv$all_constructs_test <- pepitope::example_peptides(self$rv$valid_barcodes)
+              self$rv$all_constructs_test <- pepitope::example_peptides(self$valid_barcodes)
               
 
               # Visualize barcode overlap
               output$subplot_barcodes <- renderPlot({
-                pepitope::plot_barcode_overlap(self$rv$all_constructs_test, self$rv$valid_barcodes)
+                pepitope::plot_barcode_overlap(self$rv$all_constructs_test, self$valid_barcodes)
               })
 
               # Load built-in sample sheet and fastq file
@@ -521,9 +509,9 @@ RustPipeline <- R6Class("RustPipeline",
               tryCatch({
 
                 if (is.null(self$rv$selected_constructs)) {
-                  pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
+                  pepitope::plot_barcode_overlap(self$rv$all_constructs, self$valid_barcodes)
                 } else {
-                  pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+                  pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$valid_barcodes)
                 }
 
               }, error = function(e) {
@@ -580,7 +568,7 @@ RustPipeline <- R6Class("RustPipeline",
             self$rv$selected_constructs
           }
 
-          pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
+          pepitope::count_bc(tmp_dir, selected_tables, self$valid_barcodes)
 
         }, error = function(e) {
           shinyalert(
@@ -645,13 +633,11 @@ RustPipeline <- R6Class("RustPipeline",
         plot = pepitope::plot_reads(dset)
 
         output$subplot_plot_1 <- renderPlotly({
-          # Convert ggplots to plotly
           subplot(ggplotly(plot[[1]], height=300), ggplotly(plot[[2]], height=300), nrows=1)
         })
         runjs("document.getElementById('status_2').innerText = 'Step 7/10 - Subplot_plot_1 done';")
 
         output$subplot_plot_2 <- renderPlotly({
-          # Convert ggplots to plotly
           subplot(ggplotly(plot[[3]], height=300), ggplotly(plot[[4]], height=300), nrows=1)
         })
 
@@ -659,12 +645,10 @@ RustPipeline <- R6Class("RustPipeline",
         runjs("document.getElementById('status_2').innerText = 'Step 9/10 - Subplot_plot_2 done';")
 
         output$subplot_plot_3 <- renderPlotly({
-          # Convert ggplots to plotly
           ggplotly(pepitope::plot_distr(dset), height=500, tooltip="text")
         })
         runjs("document.getElementById('status_2').innerText = 'Step 10/10 - Subplot_plot_3 done';")
 
-        # Show display tabs when all the plots are done not before
         shinyjs::show("export_metrics")
         shinyalert(
                 title = "Count completed", 
@@ -688,14 +672,11 @@ RustPipeline <- R6Class("RustPipeline",
             # Include row names in the Construct Counts data
             construct_counts <- tibble::rownames_to_column(construct_counts, var = "barcode")
 
-            # Combine data into a list of data frames, named as the sheet names
             data_list <- list(
               "Samples" = sample_metadata,
               "Construct_Metadata" = construct_metadata,
               "Construct_Counts" = construct_counts
             )
-
-            # Write all sheets to an Excel file using writexl
             writexl::write_xlsx(data_list, file)
           }
         )

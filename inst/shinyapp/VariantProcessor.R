@@ -16,7 +16,7 @@ VariantProcessor <- R6Class("VariantProcessor",
 
     rv_sheet = reactiveValues(sheet_data = NULL, table_data = NULL),
 
-    dataHandling = NULL,  # Field for the helper instance
+    dataHandling = NULL,  
 
     initialize = function(dataHandling, test_mode_1 = FALSE) {
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
@@ -122,7 +122,7 @@ VariantProcessor <- R6Class("VariantProcessor",
               barcode_list <- unlist(strsplit(input[[ns("barcode_input")]], "[,\n]+"))
               barcode_list <- trimws(barcode_list)
 
-              # Filter out empty lines so that in the next step when count happens the error can occure.
+              # Filter out empty lines 
               barcode_list <- barcode_list[barcode_list != ""]
 
               df <- self$rv_sheet$report[[sheet]]
@@ -184,12 +184,10 @@ VariantProcessor <- R6Class("VariantProcessor",
 
         # If test mode was enabled, reset it and show alert
         if (isTRUE(input$use_test_data_1)) {
-          # Uncheck the test data checkbox
           updateCheckboxInput(inputId = "use_test_data_1", value = FALSE)
 
           self$test_mode_1 <- FALSE
 
-          # Show user notification
           shinyalert(
             title = "Switched to real data",
             text = "A VCF file was uploaded. Test mode is now disabled.",
