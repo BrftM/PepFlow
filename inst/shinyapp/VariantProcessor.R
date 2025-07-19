@@ -181,9 +181,25 @@ VariantProcessor <- R6Class("VariantProcessor",
     server = function(input, output) {
       output$status_1 <- renderText({ "Waiting for input..." })
 
-       observeEvent(input$vcf_file, {
+      observeEvent(input$vcf_file, {
         req(input$vcf_file)
-       })
+
+        # If test mode was enabled, reset it and show alert
+        if (isTRUE(input$use_test_data)) {
+          # Uncheck the test data checkbox
+          updateCheckboxInput(inputId = "use_test_data", value = FALSE)
+
+          # Optional: if you track this via a flag (e.g., self$test_mode), reset it too
+          self$test_mode <- FALSE
+
+          # Show user notification
+          shinyalert(
+            title = "Switched to real data",
+            text = "A VCF file was uploaded. Test mode is now disabled.",
+            type = "info"
+          )
+        }
+      })
 
       observeEvent(input$process, {
          use_test <- isTRUE(input$use_test_data)
@@ -202,10 +218,14 @@ VariantProcessor <- R6Class("VariantProcessor",
 
         if (use_test) {
           self$test_mode <- TRUE
+          shinyalert(
+            title = "Switched to test data",
+            text = "Test mode is activated.",
+            type = "info"
+          )
           self$process_vcf()
         } else {
           req(input$vcf_file)
-          self$test_mode <- FALSE
           self$process_vcf(input$vcf_file$datapath)
         }
 
