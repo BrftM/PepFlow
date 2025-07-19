@@ -15,7 +15,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
     dataHandling = NULL,
-    test_mode = FALSE,
+    test_mode_3 = FALSE,
     
 
     initialize = function(dataHandling) {
@@ -56,7 +56,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                   sidebarPanel(
                       width = 3,
                       actionButton("help_btn_3", "Upload info ℹ️", title = "Need help for what to upload?"),
-                      checkboxInput("use_test_data", "Use test data", value = FALSE),
+                      checkboxInput("use_test_data_3", "Use test data", value = FALSE),
                       fileInput("final_peptide_table_1", "Please select 2-all-metrics.xlsx file"),
                       selectInput("ref_group", "Reference Group", choices = NULL),
                       selectInput("comp_group", "Comparison Group", choices = NULL),
@@ -87,7 +87,22 @@ DifferentialExpression <- R6Class("DifferentialExpression",
         }) 
         
         observeEvent(input$final_peptide_table_1, {
-            req(final_peptide_table_path_1())            
+            req(final_peptide_table_path_1())       
+
+            # If test mode was enabled, reset it and show alert
+            if (isTRUE(input$use_test_data_3)) {
+            # Uncheck the test data checkbox
+            updateCheckboxInput(inputId = "use_test_data_3", value = FALSE)
+
+            self$test_mode_3 <- FALSE
+
+            # Show user notification
+            shinyalert(
+                title = "Switched to real data",
+                text = "A Metrics file was uploaded. Test mode is now disabled, proceed with \"Perform Analysis\".",
+                type = "info"
+            )
+            }     
         
             sheet_names <- suppressWarnings(readxl::excel_sheets(final_peptide_table_path_1()))
            
@@ -193,15 +208,31 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
         observeEvent(input$differential , {
 
-            use_test <- isTRUE(input$use_test_data)
-            self$test_mode <- use_test
+            use_test_3 <- isTRUE(input$use_test_data_3)
+            self$test_mode_3 <- use_test_3
+            print(use_test_3)
+            print(self$test_mode_3)
+
+            if (!use_test_3 && is.null(final_peptide_table_path_1())) {
+                shinyalert(
+                title = "Missing Input",
+                text = "Please upload a metrics file or enable 'Use test data'.",
+                type = "warning"
+                )
+                runjs("document.getElementById('status_4').innerText = 'Waiting for input...';")
+                return()
+            }
             runjs("document.getElementById('status_4').innerText = 'Step 0/9 - Setup Required data...';")
             ###
             # STEP 1:
             dset <- tryCatch({
-                if (use_test) {
+                if (use_test_3) {
                     runjs("document.getElementById('status_4').innerText = 'Step 0/10 - Loading test data...';")
-
+                    shinyalert(
+                        title = "Switched to test data",
+                        text = "Test mode is activated.",
+                        type = "info"
+                    )
                     # Load internal data
                     lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
                     valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
@@ -235,7 +266,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             runjs("document.getElementById('status_4').innerText = 'Step 1/9 - Starting analysis...';")
             # STEP 2: Run differential expression
             res_list <- tryCatch({        
-                if (use_test) {  
+                if (use_test_3) {  
                     res_list <- self$run_differential_expression(dset, "Mock", "Sample")
                     comparison_name <- "Sample vs Mock"
                     res_list

@@ -12,13 +12,13 @@ VariantProcessor <- R6Class("VariantProcessor",
     ens106 = NULL,
     asm = NULL,
     rv = NULL,
-    test_mode = FALSE,
+    test_mode_1 = FALSE,
 
     rv_sheet = reactiveValues(sheet_data = NULL, table_data = NULL),
 
     dataHandling = NULL,  # Field for the helper instance
 
-    initialize = function(dataHandling, test_mode = FALSE) {
+    initialize = function(dataHandling, test_mode_1 = FALSE) {
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
@@ -26,14 +26,14 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$rv <- reactiveValues(report_data = list())
       
       self$dataHandling <- dataHandling
-      self$test_mode <- test_mode
+      self$test_mode_1 <- test_mode_1
     },
 
     process_vcf = function(vcf_file = NULL) {
       runjs("document.getElementById('status_1').innerText = 'Step 2/8 - Read VCF as VRanges...';")
 
       tryCatch({
-        if (self$test_mode || is.null(vcf_file)) {
+        if (self$test_mode_1 || is.null(vcf_file)) {
           message("Using internal test data (my_variants.vcf)...")
           vcf_file <- system.file("my_variants.vcf", package = "pepitope")
         }
@@ -162,7 +162,7 @@ VariantProcessor <- R6Class("VariantProcessor",
           sidebarPanel(
             width = 3,
             actionButton("help_btn_1", "Upload info ℹ️", title = "Need help for what to upload?"),
-            checkboxInput("use_test_data", "Use test data", value = FALSE),
+            checkboxInput("use_test_data_1", "Use test data", value = FALSE),
             fileInput("vcf_file", "Upload VCF File (.vcf.gz)", accept = ".vcf.gz"),
             actionButton("process", "Process VCF"),
             div(id = "barcode_export", style = "display: none;",
@@ -185,12 +185,11 @@ VariantProcessor <- R6Class("VariantProcessor",
         req(input$vcf_file)
 
         # If test mode was enabled, reset it and show alert
-        if (isTRUE(input$use_test_data)) {
+        if (isTRUE(input$use_test_data_1)) {
           # Uncheck the test data checkbox
-          updateCheckboxInput(inputId = "use_test_data", value = FALSE)
+          updateCheckboxInput(inputId = "use_test_data_1", value = FALSE)
 
-          # Optional: if you track this via a flag (e.g., self$test_mode), reset it too
-          self$test_mode <- FALSE
+          self$test_mode_1 <- FALSE
 
           # Show user notification
           shinyalert(
@@ -202,9 +201,9 @@ VariantProcessor <- R6Class("VariantProcessor",
       })
 
       observeEvent(input$process, {
-         use_test <- isTRUE(input$use_test_data)
+         use_test_1 <- isTRUE(input$use_test_data_1)
 
-          if (!use_test && is.null(input$vcf_file)) {
+          if (!use_test_1 && is.null(input$vcf_file)) {
             shinyalert(
               title = "Missing Input",
               text = "Please upload a VCF file or enable 'Use test data'.",
@@ -216,8 +215,8 @@ VariantProcessor <- R6Class("VariantProcessor",
 
         runjs("document.getElementById('status_1').innerText = 'Step 1/8 - Processing VCF file...';")
 
-        if (use_test) {
-          self$test_mode <- TRUE
+        if (use_test_1) {
+          self$test_mode_1 <- TRUE
           shinyalert(
             title = "Switched to test data",
             text = "Test mode is activated.",

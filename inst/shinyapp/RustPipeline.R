@@ -24,7 +24,7 @@ RustPipeline <- R6Class("RustPipeline",
     # Containts rv$all_construcs
     rv = reactiveValues(all_constructs = NULL),    
     selected_sheets = reactiveVal(NULL),
-    test_mode = FALSE,
+    test_mode_2 = FALSE,
     
     prepare_peptide_table = function(peptide_table_paths) {
 
@@ -77,7 +77,7 @@ RustPipeline <- R6Class("RustPipeline",
             width = 3,
             useShinyjs(),  # Include ShinyJS
             actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
-            checkboxInput("use_test_data", "Use test data", value = FALSE),
+            checkboxInput("use_test_data_2", "Use test data", value = FALSE),
             tags$h4("1. Peptide-table-section"),
             checkboxGroupInput("selected_tables", "", choices = NULL), 
             fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
@@ -87,7 +87,8 @@ RustPipeline <- R6Class("RustPipeline",
             tags$h4("2. Metadata-section"),
             fileInput("samples_tsv", "Please select the samples.tsv file"),
             tags$h4("3. Fastq-section"),
-            shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE),
+            #fileInput("fastq_file", "Please select a FASTQ file", multiple = FALSE, accept = c(".fastq.gz", ".fastq")),
+            shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE, accept = c(".fastq.gz", ".fastq")),
             verbatimTextOutput("fastq_file_path"),
             textInput("read_structures", "Read Structures", value = "7B+T"),
             tags$hr(),
@@ -203,9 +204,31 @@ RustPipeline <- R6Class("RustPipeline",
       observeEvent(input$samples_tsv, {
         req(input$samples_tsv)  # Ensure file input is not NULL
         
+        # If test mode was enabled, reset it and show alert
+        if (isTRUE(input$use_test_data_2)) {
+        # Uncheck the test data checkbox
+        updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
+
+        self$test_mode_2 <- FALSE
+
+        # Show user notification
+        shinyalert(
+            title = "Switched to real data",
+            text = "A samples sheet was uploaded. Test mode is now disabled.",
+            type = "info"
+        )
+        }
         # Read the TSV file
-        samples_tsv <- read.delim(input$samples_tsv$datapath, header = TRUE, sep = "\t")
-        
+        samples_tsv <- tryCatch({
+          read.delim(input$samples_tsv$datapath, header = TRUE, sep = "\t")
+        }, error = function(e) {
+          shinyalert(
+            title = "File Read Error",
+            text = paste("Could not read samples.tsv:", e$message),
+            type = "error"
+          )
+          return(NULL)
+        })
         # Define required columns
         required_columns <- c("sample_id", "patient", "rep", "origin", "barcode")
         
@@ -223,13 +246,40 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # 2. Step: Fastq-handling
+      # This registers the input
       volumes = getVolumes()
-      output$fastq_file_path <- renderText({ fastq_file_path() })
       shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
+
       fastq_file_path <- reactive({
         req(input$fastq_file)
-        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath 
+        
+        shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath    
+        #input$fastq_file$datapath
       })
+
+      observeEvent(input$fastq_file, {
+        req(input$fastq_file) 
+        
+        output$fastq_file_path <- renderText({ fastq_file_path() })
+
+        # If test mode was enabled, reset it and show alert
+        if (isTRUE(input$use_test_data_2)) {
+          # Uncheck the test data checkbox
+          updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
+
+          self$test_mode_2 <- FALSE
+
+          # Show user notification
+          shinyalert(
+              title = "Switched to real data",
+              text = "A fastq file was uploaded. Test mode is now disabled.",
+              type = "info"
+          )
+          }
+      })
+      
+
+
 
 
 
@@ -251,6 +301,21 @@ RustPipeline <- R6Class("RustPipeline",
             peptide_table = peptide_table_path()
           )
 
+          # If test mode was enabled, reset it and show alert
+          if (isTRUE(input$use_test_data_2)) {
+          # Uncheck the test data checkbox
+          updateCheckboxInput(inputId = "use_test_data_2", value = FALSE)
+
+          self$test_mode_2 <- FALSE
+
+          # Show user notification
+          shinyalert(
+              title = "Switched to real data",
+              text = "A peptide table was uploaded. Test mode is now disabled.",
+              type = "info"
+          )
+          }
+
           # Define valid barcodes
           lib = "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
           self$rv$valid_barcodes <- readr::read_tsv(lib, col_names=FALSE)$X1
@@ -258,9 +323,6 @@ RustPipeline <- R6Class("RustPipeline",
           output$subplot_barcodes <- renderPlot({
             pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
           })
-
-          # Select all if the default is choosen
-          self$rv$selected_constructs <- self$rv$all_constructs
           
           shinyjs::show("show_edit_sheets")
       })
@@ -365,11 +427,17 @@ RustPipeline <- R6Class("RustPipeline",
 
       # Step 4: Run pipeline
       observeEvent(input$run_pipeline, {
-        use_test <- isTRUE(input$use_test_data)
+        use_test_2 <- isTRUE(input$use_test_data_2)
 
-          if (use_test) {
-            self$test_mode <- TRUE
+          if (use_test_2) {
+            self$test_mode_2 <- TRUE
             runjs("document.getElementById('status_2').innerText = 'Step 0/10 - Loading test data...';")
+
+            shinyalert(
+              title = "Switched to test data",
+              text = "Test mode is activated.",
+              type = "info"
+            )
 
             tryCatch({
               # Load barcodes
@@ -377,29 +445,25 @@ RustPipeline <- R6Class("RustPipeline",
               self$rv$valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
 
               # Load peptide constructs
-              self$rv$all_constructs <- pepitope::example_peptides(self$rv$valid_barcodes)
-              self$rv$selected_constructs <- self$rv$all_constructs
-              selected_tables <- self$rv$selected_constructs
+              self$rv$all_constructs_test <- pepitope::example_peptides(self$rv$valid_barcodes)
+              
 
               # Visualize barcode overlap
               output$subplot_barcodes <- renderPlot({
-                pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
+                pepitope::plot_barcode_overlap(self$rv$all_constructs_test, self$rv$valid_barcodes)
               })
 
               # Load built-in sample sheet and fastq file
               sample_sheet <- system.file("my_samples.tsv", package = "pepitope")
               filtered_samples <- readr::read_tsv(sample_sheet, show_col_types = FALSE)
 
-              fastq <- pepitope::example_fastq(sample_sheet, self$rv$all_constructs)
+              fastq <- pepitope::example_fastq(sample_sheet, self$rv$all_constructs_test)
              
               # Store filtered samples TSV temporarily
               filtered_tsv <- tempfile(fileext = ".tsv")
               readr::write_tsv(filtered_samples, filtered_tsv)
 
               fastq_path <- fastq
-
-              print("fastq_path")
-              print(fastq_path)
 
               runjs("document.getElementById('status_2').innerText = 'Step 0/10 - Loading test data completed';")
 
@@ -409,27 +473,69 @@ RustPipeline <- R6Class("RustPipeline",
                 text = paste("An error occurred during test data setup:", e$message),
                 type = "error"
               )
-              status_2("Test data loading failed.")
-              return()  # Exit the observeEvent early
+              runjs("document.getElementById('status_2').innerText = 'Error: Test data loading failed.';")
+
+              return() 
             })
           } else {
-            self$test_mode <- FALSE
+            self$test_mode_2 <- FALSE
 
-            req(fastq_file_path(), peptide_table_path(), samples_tsv_path())
-           
+            if (!use_test_2 && is.null(samples_tsv_path()) || is.null(fastq_file_path()) || is.null(peptide_table_path()) ) {
+              shinyalert(
+                title = "Missing Input",
+                text = "Please upload the missing file or enable 'Use test data'.",
+                type = "warning"
+              )
+              runjs("document.getElementById('status_2').innerText = 'Waiting for input...';")
+              return()
+            }
+
             # Step 1: Read sample sheet
             samples_tsv <- samples_tsv_path()
             samples <- readr::read_tsv(samples_tsv)
 
-            selected_tables <- self$rv$selected_constructs
+            # Step 2: Update peptide table 
+            self$rv$all_constructs <- rust_pipeline$prepare_peptide_table(
+              peptide_table = peptide_table_path()
+            )  
 
-            fastq_path <- shinyFiles::parseFilePaths(volumes, input$fastq_file)$datapath
-            # Step 2: Filter only selected patients from sample sheet
+            if (is.null(self$rv$selected_constructs)) {
+                  selected_tables <- self$rv$all_constructs
+                  self$rv$selected_constructs <-  self$rv$all_constructs
+            } else {
+                  selected_tables <- self$rv$selected_constructs
+            }
+
+            fastq_path <- fastq_file_path()
+
+            # Step 3: Filter only selected patients from sample sheet
             filtered_samples <- samples[samples$patient %in% names(selected_tables), ]
 
-            # Step 3: Write filtered data to a temp file
+            # Step 4: Write filtered data to a temp file
             filtered_tsv <- tempfile(fileext = ".tsv")
             readr::write_tsv(filtered_samples, filtered_tsv)
+
+
+
+            output$subplot_barcodes <- renderPlot({
+              tryCatch({
+
+                if (is.null(self$rv$selected_constructs)) {
+                  pepitope::plot_barcode_overlap(self$rv$all_constructs, self$rv$valid_barcodes)
+                } else {
+                  pepitope::plot_barcode_overlap(self$rv$selected_constructs, self$rv$valid_barcodes)
+                }
+
+              }, error = function(e) {
+                shinyalert(
+                  title = "Duplicate barcodes or processing error",
+                  text = paste0("An error occurred while processing one of the selected sheets: ", e$message,
+                                "\nPlease review the sheet structure and ensure unique barcodes."),
+                  type = "error"
+                )
+              })
+            })
+            
           }
 
          # Step 4: Run fqtk
@@ -467,7 +573,15 @@ RustPipeline <- R6Class("RustPipeline",
 
         # Step 6: Count barcodes
         dset <- tryCatch({
+          # Choose the correct constructs table based on test mode
+          selected_tables <- if (self$test_mode_2) {
+            self$rv$all_constructs_test
+          } else {
+            self$rv$selected_constructs
+          }
+
           pepitope::count_bc(tmp_dir, selected_tables, self$rv$valid_barcodes)
+
         }, error = function(e) {
           shinyalert(
             title = "Error during barcode counting",
