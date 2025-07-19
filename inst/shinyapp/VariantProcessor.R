@@ -138,9 +138,7 @@ VariantProcessor <- R6Class("VariantProcessor",
               }
 
               df$barcode <- barcode_list
-              print("Add barcodes to sheet:")
               self$rv_sheet$report[["93 nt Peptides"]] <- df
-              print(head(self$rv_sheet$report[["93 nt Peptides"]]))
 
               runjs("document.getElementById('status_1').innerText = 'Step 8/8 - Barcodes added!';")
 

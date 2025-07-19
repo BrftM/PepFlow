@@ -210,8 +210,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
 
             use_test_3 <- isTRUE(input$use_test_data_3)
             self$test_mode_3 <- use_test_3
-            print(use_test_3)
-            print(self$test_mode_3)
 
             if (!use_test_3 && is.null(final_peptide_table_path_1())) {
                 shinyalert(

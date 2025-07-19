@@ -21,10 +21,6 @@ variantProcessor <- VariantProcessor$new(
   dataHandling = dataHandling
 )
 
-# If i want to use upload like others
-#options(shiny.maxRequestSize = 40960 * 1024^2)  # ~40 GB
-
-
 # Define UI ----
 ui <- fluidPage(
   titlePanel("TCR-Antigen screen minimal workflow"),
