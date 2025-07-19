@@ -15,6 +15,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
     dataHandling = NULL,
+    test_mode_3 = FALSE,
     
 
     initialize = function(dataHandling) {
@@ -55,6 +56,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                   sidebarPanel(
                       width = 3,
                       actionButton("help_btn_3", "Upload info ℹ️", title = "Need help for what to upload?"),
+                      checkboxInput("use_test_data_3", "Use test data", value = FALSE),
                       fileInput("final_peptide_table_1", "Please select 2-all-metrics.xlsx file"),
                       selectInput("ref_group", "Reference Group", choices = NULL),
                       selectInput("comp_group", "Comparison Group", choices = NULL),
@@ -85,7 +87,22 @@ DifferentialExpression <- R6Class("DifferentialExpression",
         }) 
         
         observeEvent(input$final_peptide_table_1, {
-            req(final_peptide_table_path_1())            
+            req(final_peptide_table_path_1())       
+
+            # If test mode was enabled, reset it and show alert
+            if (isTRUE(input$use_test_data_3)) {
+            # Uncheck the test data checkbox
+            updateCheckboxInput(inputId = "use_test_data_3", value = FALSE)
+
+            self$test_mode_3 <- FALSE
+
+            # Show user notification
+            shinyalert(
+                title = "Switched to real data",
+                text = "A Metrics file was uploaded. Test mode is now disabled, proceed with \"Perform Analysis\".",
+                type = "info"
+            )
+            }     
         
             sheet_names <- suppressWarnings(readxl::excel_sheets(final_peptide_table_path_1()))
            
@@ -138,9 +155,12 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 title = "📘 Help: Upload Instructions",
                 HTML(
                 "<div style='line-height: 1.5;'>
+                <h4>🚀 Test Mode</h4>
+                <p>You can check the <code>Use test data</code> box to skip file uploads and run an example differential expression analysis based on internal data (pat1) otherwise supply the following described file.</p>
+
 
                     <h4>🗂️ Excel File Format (2-all-metrics.xlsx)</h4>
-                    <p>Upload an Excel file containing the following three sheets:</p>
+                    <p>Upload an Excel file, resulting from the previous step Quality control, containing the following three sheets:</p>
                     <ul>
                     <li><strong>Samples</strong></li>
                     <li><strong>Construct_Metadata</strong></li>
@@ -148,7 +168,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                     </ul>
                     <p>⚠️ All three sheets must contain only data from a single patient.</p>
 
-                    <h4>🧾 1. Samples Sheet</h4>
+                    <h4>🧾 Samples</h4>
                     <p>Must include one unique patient only and at least two different origins. Format example:</p>
                     <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
             sample_id  patient       rep  origin  barcode  total_reads  mapped_reads  smp        short                  label
@@ -156,7 +176,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             screen1    pat1+common   1    Sample  AACCGAC  454355       454355        Sample-1   pat1+common Sample-1   pat1+common Sample-1 (screen1)
                     </pre>
 
-                    <h4>🧬 2. Construct_Metadata Sheet</h4>
+                    <h4>🧬 Construct_Metadata</h4>
                     <p>This sheet must also contain only entries for one patient.</p>
                     <pre style='background:#f8f9fa; border:1px solid #dee2e6; padding:10px;'>
             barcode        bc_type  var_id             gene_name  mut_id         pep_id        pep_type  gene_id        tx_id           n_tiles  BbsI_replaced  tiled  nt  peptide
@@ -164,7 +184,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             AACAACCGCATT   pat1     chr1:56458644_C/T  BKLA1      KLN2A1_EdL     KLN2A1_EdL    alt       KNLG...        MDST...         1        0              ...    93  LEDDAA...
                     </pre>
 
-                    <h4>📊 3. Construct_Counts Sheet</h4>
+                    <h4>📊 Construct_Counts</h4>
                     <p>Must contain count data for the same patient as in the Samples sheet.</p>
                     <ul>
                     <li>The number of columns must match the number of sample rows of the used sample sheet.</li>
@@ -187,100 +207,131 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             })
 
         observeEvent(input$differential , {
-           req(final_peptide_table_path_1(), input$ref_group , input$comp_group )
 
-            
-            runjs("document.getElementById('status_4').innerText = 'Step 1/8 - Starting analysis...';")
+            use_test_3 <- isTRUE(input$use_test_data_3)
+            self$test_mode_3 <- use_test_3
+            print(use_test_3)
+            print(self$test_mode_3)
 
-            if (input$ref_group == input$comp_group) {
-                runjs("document.getElementById('status_4').innerText = 'Reference group and comparison group must be different.';")
+            if (!use_test_3 && is.null(final_peptide_table_path_1())) {
                 shinyalert(
-                        title = "Can´t compare group with itself.", 
-                        text = paste("Error Reference group and comparison group must be different!"),
-                        type = "error"
+                title = "Missing Input",
+                text = "Please upload a metrics file or enable 'Use test data'.",
+                type = "warning"
                 )
-                return(NULL)
+                runjs("document.getElementById('status_4').innerText = 'Waiting for input...';")
+                return()
             }
-            
-            # Transform peptide table into SummarizedExperiment object
-            dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
-                
-            res_list <- self$run_differential_expression(dset, input$ref_group , input$comp_group )
-        
-            runjs("document.getElementById('status_4').innerText = 'Step 7/9 - Analysis completed successfully';")
-            
+            runjs("document.getElementById('status_4').innerText = 'Step 0/9 - Setup Required data...';")
+            ###
+            # STEP 1:
+            dset <- tryCatch({
+                if (use_test_3) {
+                    runjs("document.getElementById('status_4').innerText = 'Step 0/10 - Loading test data...';")
+                    shinyalert(
+                        title = "Switched to test data",
+                        text = "Test mode is activated.",
+                        type = "info"
+                    )
+                    # Load internal data
+                    lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
+                    valid_barcodes <- readr::read_tsv(lib, col_names = FALSE)$X1
+                    constructs <- pepitope::example_peptides(valid_barcodes)
+                    sample_sheet <- system.file("my_samples.tsv", package = "pepitope")
+                    fastq <- pepitope::example_fastq(sample_sheet, constructs)
+                    tmp_dir <- pepitope::demux_fq(fastq, sample_sheet, read_structures = "7B+T")
+                    dset <- pepitope::count_bc(tmp_dir, constructs, valid_barcodes)
 
-            # Extract the comparison name from the configuration of the differential expression
-            comparison_name <- paste(input$comp_group, "vs", input$ref_group)
-            
+                    # Keep only 'pat1' samples
+                    dset <- dset[, grepl("pat1", dset$patient)]
 
-            
-
-            # Create the 'text' column in res_list$res
-            res_list$res[[1]]$text <- with(res_list$res[[1]], sprintf(
-                "%s %s (%s)\nFC %.1fx p=%.2g",
-                pep_id, pep_type, barcode,
-                sign(stat) * 2^abs(log2FoldChange), pvalue
-            ))
-            # Remove " NA" from the text
-            res_list$res[[1]]$text <- gsub(" NA", "", res_list$res[[1]]$text)
-
-            plt <- ggplot(res_list$res[[1]], aes(x = baseMean, y = log2FoldChange, text = text)) +
-                geom_point(aes(color = bc_type, shape = pep_type, size = padj < 0.1, alpha = padj < 0.1)) +
-                scale_shape_manual(values = c(ref = 1, alt = 19), na.value = 19) +
-                scale_size_manual(values = c("TRUE" = 2, "FALSE" = 0.8), na.value = 0.8) +
-                scale_alpha_manual(values = c("TRUE" = 0.7, "FALSE" = 0.3), na.value = 0.3) +
-                scale_color_brewer(palette = "Set1") +
-                scale_x_log10(limits = c(10, NA)) +
-                ggtitle("Differential Expression Plot") +
-                theme_minimal()
-
-            # Render the interactive Plotly plot
-            output$de_plot <- renderPlotly({
-                if (exists("plt") && !is.null(plt)) {
-                    ggplotly(plt, tooltip = "text")  # Display the interactive plot with tooltips
+                    runjs("document.getElementById('status_4').innerText = 'Step 0/10 - Loading test data completed';")
                 } else {
-                    warning("WARNING: No valid plots available to render")
-                    NULL
+                    req(final_peptide_table_path_1()) 
+                    dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
                 }
+                dset 
+                }, error = function(e) {
+                shinyalert(
+                    title = "Data Load Failed",
+                    text = paste("Could not prepare input data:", e$message),
+                    type = "error"
+                )
+                runjs("document.getElementById('status_4').innerText = 'Error: Failed to load input data.';")
+                return(NULL)
+                })
+
+                if (is.null(dset)) return(runjs("document.getElementById('status_4').innerText = 'Error: Dset is NUll.';"))
+
+            runjs("document.getElementById('status_4').innerText = 'Step 1/9 - Starting analysis...';")
+            # STEP 2: Run differential expression
+            res_list <- tryCatch({        
+                if (use_test_3) {  
+                    res_list <- self$run_differential_expression(dset, "Mock", "Sample")
+                    comparison_name <- "Sample vs Mock"
+                    res_list
+                } else {  
+                    res_list <- self$run_differential_expression(dset, input$ref_group , input$comp_group )
+                    # STEP 3: Build plot
+                    # Extract the comparison name from the configuration of the differential expression
+                    comparison_name <- paste(input$comp_group, "vs", input$ref_group)
+                    res_list
+                }
+            }, error = function(e) {
+                shinyalert(
+                title = "Differential Expression Error",
+                text = paste("Error in differential expression analysis:", e$message),
+                type = "error"
+                )
+                runjs("document.getElementById('status_4').innerText = 'Error: Failed to run differential expression.';")
+                return(NULL)
+            })
+
+            if (is.null(res_list$res)) return()
+                    
+            runjs("document.getElementById('status_4').innerText = 'Step 7/9 - Analysis completed successfully';")
+                       
+            plt <- tryCatch({
+                pepitope::plot_screen(res_list$res[[comparison_name]])
+            }, error = function(e) {
+                shinyalert(
+                    title = "Plotting Error",
+                    text = paste("Could not generate plot:", e$message),
+                    type = "error"
+                )
+            return(NULL)
+            })
+            if (is.null(plt)) return()
+
+            output$de_plot <- renderPlotly({
+                ggplotly(plt, tooltip = "text")
             })
     
-            # Flatten each comparison and tag with sample name to be able to export proper as table
-            # Drop columns that are completely NA
-            cleaned_df <- res_list$res[[comparison_name]] %>%
-                select_if(~ !all(is.na(.)))
-            
             shinyjs::show("export_plot_data")
 
 
+            # Step: Export plot as PDF
             output$download_pdf <- downloadHandler(
-            filename = function() {
-                paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_",   comparison_name, ".pdf")
-            },
-            content = function(file) {
-                # Add comparison_name to plot title
-                plot_with_title <- plt + ggtitle(paste("Differential Expression:", " Patient ", unique(dset$patient), " ",   comparison_name))
-
-                # Write plot to PDF
-                pdf(file, width = 8, height = 6)
-                print(plot_with_title)
-                dev.off()
-            }
+                filename = function() {
+                    paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".pdf")
+                },
+                content = function(file) {
+                    plot_with_title <- plt + ggtitle(paste("Differential Expression: Patient", unique(dset$patient), "-", comparison_name))
+                    pdf(file, width = 8, height = 6)
+                    dev.off()
+                }
             )
 
-            # Export table
+            # Step: Export results table as XLSX
             output$download_plot_data <- downloadHandler(
-            filename = function() {
-                paste0("diff_expression_summary_", Sys.Date(), " Patient ", unique(dset$patient), " ",  comparison_name, ".xlsx")
-            },
-            content = function(file) {
-                # Create a named list where the name is set using the variable comparison_name
-                sheet_list <- list()
-                sheet_list[[comparison_name]] <- cleaned_df
-                
-                # Write the data to an Excel file with the specified sheet name
-                writexl::write_xlsx(sheet_list, path = file)
-            }
+                filename = function() {
+                    paste0("diff_expression_summary_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".xlsx")
+                },
+                content = function(file) {
+                    sheet_list <- list()
+                    sheet_list[[comparison_name]] <- res_list$res[[comparison_name]]
+                    writexl::write_xlsx(sheet_list, path = file)
+                }
             )
             runjs("document.getElementById('status_4').innerText = 'Step 9/9 - Plotting successful';")
         })
