@@ -304,14 +304,15 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             shinyjs::show("export_plot_data")
 
             output$download_pdf <- downloadHandler(
-                filename = function() {
-                    paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".pdf")
-                },
-                content = function(file) {
-                    plot_with_title <- plt + ggtitle(paste("Differential Expression: Patient", unique(dset$patient), "-", comparison_name))
-                    pdf(file, width = 8, height = 6)
-                    dev.off()
-                }
+            filename = function() {
+                paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".pdf")
+            },
+            content = function(file) {
+                plot_with_title <- plt + ggtitle(paste("Differential Expression: Patient", unique(dset$patient), "-", comparison_name))
+                pdf(file, width = 8, height = 6)
+                print(plot_with_title)  
+                dev.off()  
+            }
             )
 
             output$download_plot_data <- downloadHandler(
