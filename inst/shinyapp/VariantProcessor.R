@@ -1,12 +1,3 @@
-library(R6)
-library(shiny)
-library(pepitope)
-library(AnnotationHub)
-library(writexl)
-
-library(DT)
-library(shinyjs)
-
 VariantProcessor <- R6Class("VariantProcessor",
   public = list(
     ens106 = NULL,

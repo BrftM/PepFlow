@@ -1,11 +1,3 @@
-library(shiny)
-library(R6)
-
-source("VariantProcessor.R") 
-source("RustPipeline.R")  
-source("DifferentialExpression.R") 
-source("DataHandling.R")
-
 # Create an instance of Classes
 rustPipeline <- RustPipeline$new()
 
