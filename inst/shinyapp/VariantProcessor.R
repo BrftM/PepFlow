@@ -3,6 +3,7 @@ library(shiny)
 library(pepitope)
 library(AnnotationHub)
 library(writexl)
+library(VariantAnnotation)
 
 library(DT)
 library(shinyjs)
@@ -15,7 +16,6 @@ VariantProcessor <- R6Class("VariantProcessor",
     test_mode_1 = FALSE,
 
     rv_sheet = reactiveValues(sheet_data = NULL, table_data = NULL),
-
     dataHandling = NULL,  
 
     initialize = function(dataHandling, test_mode_1 = FALSE) {
@@ -29,48 +29,93 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$test_mode_1 <- test_mode_1
     },
 
-    process_vcf = function(vcf_file = NULL) {
+    process_vcf = function(vcf_file = NULL, sample_selected = NULL) {
       runjs("document.getElementById('status_1').innerText = 'Step 2/8 - Read VCF as VRanges...';")
 
-      tryCatch({
-        if (self$test_mode_1 || is.null(vcf_file)) {
-          message("Using internal test data (my_variants.vcf)...")
-          vcf_file <- system.file("my_variants.vcf", package = "pepitope")
-        }
+      # Step 1: Load test VCF if needed
+      if (self$test_mode_1 || is.null(vcf_file)) {
+        vcf_file <- system.file("my_variants.vcf", package = "pepitope")
+        sample_selected <- NULL
+      }
 
+      # Step 3: Convert to VRanges and filter variants
+      vr1 <- tryCatch({
         vr1 <- pepitope::readVcfAsVRanges(vcf_file) |>
-          pepitope::filter_variants(min_cov = 2, min_af = 0.05, pass = TRUE, chrs = "default")
+                  pepitope::filter_variants(min_cov = 2, min_af = 0.05, pass = TRUE, sample=sample_selected)
+        vr1
+      }, error = function(e) {
+        shinyalert("Error reading VCF or filtering variants", e$message, type = "error")
+        return(NULL)
+      })
 
-        runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
+      if (is.null(vr1) || length(vr1) == 0) {
+        shinyalert("No variants read", "No variants found for the selected sample.", type = "error")
+        return()
+      }
+
+      runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
+
+      # Step 4: Annotate coding
+      ann <- tryCatch({
 
         ann <- pepitope::annotate_coding(vr1, self$ens106, self$asm)
-        subs <- ann |> pepitope::subset_context(15)
+        if (is.null(ann) || length(ann) == 0) {
+          stop("Annotation result is empty.")
+        }
+        ann
+      }, error = function(e) {
+        shinyalert("Annotation error", e$message, type = "error")
+        return(NULL)
+      })
 
-        runjs("document.getElementById('status_1').innerText = 'Step 4/8 - Tiling cDNAs...';")
+      if (is.null(ann) || length(ann) == 0) return()
 
-        tiled <- pepitope::make_peptides(subs) |>
+      # Step 5: Subset context
+      subs <- tryCatch({
+            subs = ann |>
+              pepitope::subset_context(15)
+
+      }, error = function(e) {
+        shinyalert("Subset context error", e$message, type = "error")
+        return(NULL)
+      })
+
+      if (is.null(subs)) {
+        warning("Subset context failed. Halting downstream processing.")
+        return()
+      }
+
+      runjs("document.getElementById('status_1').innerText = 'Step 4/8 - Tiling cDNAs...';")
+
+      # Step 6: Tiling
+      tiled <- tryCatch({
+        pepitope::make_peptides(subs) |>
           pepitope::pep_tile() |>
           pepitope::remove_cutsite(BbsI = "GAAGAC")
-
-        runjs("document.getElementById('status_1').innerText = 'Step 5/8 - Make report...';")
-
-        self$rv_sheet$report <- pepitope::make_report(vars = ann, subs = subs, tiled = tiled)
-
-        shinyalert(
-          title = "Report completed",
-          text = paste("Barcodes can be added in sheet \"93 nt Peptides.\""),
-          type = "success"
-        )
       }, error = function(e) {
-        warning(paste("Error in process_vcf:", e$message))
-        shinyalert(
-          title = "Error in VCF Processing",
-          text = e$message,
-          type = "error"
-        )
-        self$rv_sheet$report <- NULL
+        shinyalert("Tiling error", e$message, type = "error")
+        return(NULL)
       })
+
+      if (is.null(tiled)) return()
+
+      runjs("document.getElementById('status_1').innerText = 'Step 5/8 - Make report...';")
+
+      # Step 7: Generate report
+      self$rv_sheet$report <- tryCatch({
+        pepitope::make_report(vars = ann, subs = subs, tiled = tiled)
+      }, error = function(e) {
+        shinyalert("Report generation error", e$message, type = "error")
+        return(NULL)
+      })
+
+      shinyalert(
+        title = "Report completed",
+        text = "Barcodes can be added in sheet '93 nt Peptides.'",
+        type = "success"
+      )
     },
+
 
     display_table = function(output, input) {
       runjs("document.getElementById('status_1').innerText = 'Step 7/8 - Add barcodes or download';")
@@ -162,6 +207,7 @@ VariantProcessor <- R6Class("VariantProcessor",
             actionButton("help_btn_1", "Upload info ℹ️", title = "Need help for what to upload?"),
             checkboxInput("use_test_data_1", "Use test data", value = FALSE),
             fileInput("vcf_file", "Upload VCF File (.vcf.gz)", accept = ".vcf.gz"),
+            selectInput("sampleNames", "Select sample", choices = NULL),
             actionButton("process", "Process VCF"),
             div(id = "barcode_export", style = "display: none;",
               downloadButton("download_peptide_table", "Download Peptide Table")
@@ -194,6 +240,11 @@ VariantProcessor <- R6Class("VariantProcessor",
             type = "info"
           )
         }
+
+        vr <- pepitope::readVcfAsVRanges(input$vcf_file$datapath)
+        samples <- levels(sampleNames(vr))
+        
+        updateSelectInput(inputId = "sampleNames", choices = samples, selected = samples[1])
       })
 
       observeEvent(input$process, {
@@ -221,7 +272,7 @@ VariantProcessor <- R6Class("VariantProcessor",
           self$process_vcf()
         } else {
           req(input$vcf_file)
-          self$process_vcf(input$vcf_file$datapath)
+          self$process_vcf(input$vcf_file$datapath , input$sampleNames)
         }
 
         runjs("document.getElementById('status_1').innerText = 'Step 6/8 - VCF file processed';")
