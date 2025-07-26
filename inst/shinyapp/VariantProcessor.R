@@ -55,6 +55,50 @@ VariantProcessor <- R6Class("VariantProcessor",
 
       runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
 
+      # Extract the list of sequence levels (chromosomes/contigs) from the BSgenome object (e.g., "chr1", "chr2", etc.)
+      # This list is fixed and cannot be changed, but can be used to filter other objects.
+      genome_seqlevels <- seqlevels(self$asm)
+
+      # ---- Level-fix-part 1: Filter VRanges to match BSgenome ----
+      # Keep only the chromosomes that are present in both the VCF-derived VRanges (vr1) and the BSgenome.
+      # This ensures that downstream annotations only happen on contigs with known sequence lengths and data.
+      vr1 <- keepSeqlevels(
+        vr1,
+        intersect(seqlevels(vr1), genome_seqlevels),
+        pruning.mode = "coarse"  # drops any ranges on excluded chromosomes
+      )
+
+      # ---- Level-fix-part 2: Extract gene annotations as GRanges from the EnsDb ----
+      # Since you cannot modify EnsDb directly, you pull out the gene models as a GRanges object.
+      genes_gr <- GenomicFeatures::genes(self$ens106)
+
+      # Ensure the gene annotations use UCSC-style naming (e.g., "chr1", "chrM" instead of "1", "MT")
+      seqlevelsStyle(genes_gr) <- "UCSC"
+
+      # Explicitly set the genome build label to match other objects (GRCh38 in this case)
+      genome(genes_gr) <- "GRCh38"
+
+      # Keep only chromosomes present in both the gene annotations and the genome reference
+      genes_gr <- keepSeqlevels(
+        genes_gr,
+        intersect(seqlevels(genes_gr), genome_seqlevels),
+        pruning.mode = "coarse"
+      )
+
+      # ---- Level-fix-part 3: Ensure vr1 and gene annotations share the exact same chromosomes ----
+      # Now that both have been filtered to what's available in the BSgenome,
+      # further restrict to chromosomes common to both VRanges and gene annotation data.
+      common <- Reduce(intersect, list(seqlevels(vr1), seqlevels(genes_gr)))
+
+      # Apply this reduced set of seqlevels to both objects again
+      vr1 <- keepSeqlevels(vr1, common, pruning.mode = "coarse")
+      genes_gr <- keepSeqlevels(genes_gr, common, pruning.mode = "coarse")
+
+      # ---- Level-fix-part 4 (Optional but recommended): Trim any variants that exceed known chromosome bounds ----
+      # This step removes or shortens any variant positions that lie outside of the valid sequence lengths
+      # defined in the Seqinfo object of the genome.
+      vr1 <- GenomicRanges::trim(vr1)
+
       # Step 4: Annotate coding
       ann <- tryCatch({
 
