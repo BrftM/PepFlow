@@ -1,6 +1,6 @@
 Package: PepFlow
 Title: Uses package pepitope to Extract, QC and Screen Peptide Epitopes
-Version: 0.0.0.9004
+Version: 0.0.0.9005
 Authors@R: 
     person("Moritz", "Broft", , "moritz.broft@student.uibk.ac.at", role = c("aut", "cre"))
 Description: PepFlow is designed to facilitate the extraction, quality control (QC), 
@@ -42,5 +42,7 @@ LazyData: true
 RoxygenNote: 7.3.2
 URL: https://github.com/BrftM/PepFlow
 BugReports: https://github.com/BrftM/PepFlow/issues
+Remotes:
+    mschubert/pepitope
 
 

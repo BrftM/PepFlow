@@ -57,7 +57,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                       width = 3,
                       actionButton("help_btn_3", "Upload info ℹ️", title = "Need help for what to upload?"),
                       checkboxInput("use_test_data_3", "Use test data", value = FALSE),
-                      fileInput("final_peptide_table_1", "Please select 2-all-metrics.xlsx file"),
+                      fileInput("final_peptide_table_1", "Please select all-metrics.xlsx file"),
                       selectInput("ref_group", "Reference Group", choices = NULL),
                       selectInput("comp_group", "Comparison Group", choices = NULL),
                       actionButton("differential", "Perform Analysis"),
@@ -159,7 +159,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 <p>You can check the <code>Use test data</code> box to skip file uploads and run an example differential expression analysis based on internal data (pat1) otherwise supply the following described file.</p>
 
 
-                    <h4>🗂️ Excel File Format (2-all-metrics.xlsx)</h4>
+                    <h4>🗂️ Excel File Format (all-metrics.xlsx)</h4>
                     <p>Upload an Excel file, resulting from the previous step Quality control, containing the following three sheets:</p>
                     <ul>
                     <li><strong>Samples</strong></li>

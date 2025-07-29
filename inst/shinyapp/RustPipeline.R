@@ -103,7 +103,7 @@ RustPipeline <- R6Class("RustPipeline",
             actionButton("run_pipeline", "Run Pipeline"),
            
             div(id= "export_metrics", style = "display: none;",
-              downloadButton("download_new_peptide_table", "Download Results: 2-all-metrics.xlsx"),
+              downloadButton("download_new_peptide_table", "Download Results: all-metrics.xlsx"),
             ),
             verbatimTextOutput("status_2")
           ),
@@ -597,9 +597,10 @@ RustPipeline <- R6Class("RustPipeline",
         # Step 6: Output: {output}.counts.txt, {output}.-extended-counts.txt,  {output}.stats.txt display them in a table
         runjs("document.getElementById('status_2').innerText = 'Step 5/10 - Guide-counter successfully. Disyplay results';")
 
+
         output$construct_meta_data <- renderTable({
           construct_meta_data <- rowData(dset)
-          head(construct_meta_data, 50) 
+          head(construct_meta_data, 50)
         })
 
 
@@ -657,7 +658,7 @@ RustPipeline <- R6Class("RustPipeline",
         )
         output$download_new_peptide_table <- downloadHandler(
           filename = function() {
-            "2-all-metrics.xlsx"
+            paste0(Sys.Date(), "_all-metrics", ".xlsx")
           },
           content = function(file) {
             # 1. Export Sample Metadata (colData)
