@@ -1,3 +1,5 @@
+library(PepFlow)
+
 # Create an instance of Classes
 rustPipeline <- RustPipeline$new()
 
