@@ -27,7 +27,8 @@ Imports:
     crosstalk,
     AnnotationHub,
     SummarizedExperiment,
-    VariantAnnotation
+    VariantAnnotation,
+    Biostrings
 Suggests:
     testthat,
     roxygen2,

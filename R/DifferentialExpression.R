@@ -1,32 +1,42 @@
-## Class system (R6Class)
-library(R6)
-## UI/server logic
-library(shiny)
-## Data wrangling (dplyr, tibble, purrr)
-library(dplyr)
-## Static plotting
-library(ggplot2)
-library(ggpp)
-
-## Interactive plots
-library(plotly)
-
+#' DifferentialExpression Class
+#'
+#' This class handles differential expression analysis.
+#'
+#' @importFrom R6 R6Class
+#' @importFrom shiny tabPanel sidebarLayout sidebarPanel mainPanel
+#' @importFrom shiny actionButton checkboxInput fileInput selectInput downloadButton
+#' @importFrom shiny verbatimTextOutput textOutput plotOutput renderText renderPlot
+#' @importFrom shiny observeEvent reactive reactiveVal renderUI updateCheckboxInput updateSelectInput
+#' @importFrom shiny modalDialog showModal HTML req
+#' @importFrom shinyalert shinyalert
+#' @importFrom ggplot2 ggplot aes geom_point theme
+#' @importFrom shinyjs useShinyjs runjs
+#' 
+#' @field dataHandling An object of class DataHandling used to manage data input.
+#' @field test_mode_3 Logical flag for test mode.
+#'
+#' @param dataHandling An instance of DataHandling class.
+#' @param input Shiny input object.
+#' @param output Shiny output object.
+#'
+#' @return An R6 object of class DifferentialExpression.
 DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
     dataHandling = NULL,
     test_mode_3 = FALSE,
     
-
+    #' @param dataHandling An instance of DataHandling class.
     initialize = function(dataHandling) {
     self$dataHandling <- dataHandling
     },
     
-    #' Wrapper method that builds config, triggers function calls to pepitope.
-    #' @param table_list: Output from transform_xlsx()
-    #' @param ref_group: String name of the reference group (e.g., "CDK4")
-    #' @param comp_group: String name of the comparison group (e.g., "Bcell.only")
-    #' Returns: List containing a SummarizedExperiment and the comparison
+    #' Run differential expression analysis
+    #'
+    #' @param dset Output from transform_xlsx()
+    #' @param ref_group String name of the reference group (e.g., "CDK4")
+    #' @param comp_group String name of the comparison group (e.g., "Bcell.only")
+    #' @return List containing a SummarizedExperiment and the comparison config
     run_differential_expression = function(dset, ref_group, comp_group) {
         message("Step 2: Performing differential expression analysis")
         
@@ -49,7 +59,9 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 
         return(list(res = res, cfg=cfg))
       },
-
+        
+      #' Generate UI components
+      #' @return shiny UI elements for tab panel
       ui = function() {
           tabPanel("Co-culture screen",
               sidebarLayout(
@@ -74,7 +86,10 @@ DifferentialExpression <- R6Class("DifferentialExpression",
               )
           )
       },
-
+      #' Server logic for differential expression module
+      #'
+      #' @param input Shiny input object
+      #' @param output Shiny output object
       server = function(input, output) {
         wd <- normalizePath(".")
 
@@ -298,7 +313,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
             if (is.null(plt)) return()
 
             output$de_plot <- renderPlotly({
-                ggplotly(plt, tooltip = "text")
+                plotly::ggplotly(plt, tooltip = "text")
             })
     
             shinyjs::show("export_plot_data")
@@ -308,7 +323,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 paste0("Differential_Expression_Result_", Sys.Date(), "_patient_", unique(dset$patient), "_", comparison_name, ".pdf")
             },
             content = function(file) {
-                plot_with_title <- plt + ggtitle(paste("Differential Expression: Patient", unique(dset$patient), "-", comparison_name))
+                plot_with_title <- plt + ggplot2::ggtitle(paste("Differential Expression: Patient", unique(dset$patient), "-", comparison_name))
                 pdf(file, width = 8, height = 6)
                 print(plot_with_title)  
                 dev.off()  

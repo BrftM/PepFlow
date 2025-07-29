@@ -1,40 +1,66 @@
-library(shiny)
-library(R6)
-library(DT)
-library(shinyjs)
-library(shinyFiles)
-library(shinyalert)
-
-# Plotting dependencys
-library(dplyr)
-library(ggplot2)
-library(plotly)
-library(patchwork)
-library(crosstalk)
-
-# Excel
-library(readxl)  
-
-# Pepitope
-library(pepitope)
-
-library(Biostrings)
+#' RustPipeline R6 Class
+#'
+#' This class handles the demultiplexing of fastq files and the guide counting of variants.
+#'
+#' @importFrom shiny fluidPage sidebarLayout sidebarPanel mainPanel tabsetPanel tabPanel
+#' @importFrom shiny inputPanel textInput selectInput numericInput checkboxInput radioButtons
+#' @importFrom shiny actionButton fileInput downloadButton uiOutput verbatimTextOutput textOutput
+#' @importFrom shiny renderText renderUI renderPlot renderTable
+#' @importFrom shiny reactive reactiveValues observe observeEvent eventReactive
+#' @importFrom shiny runApp
+#' @importFrom shinyjs useShinyjs
+#' @importFrom shinyalert useShinyalert
+#' @importFrom shinyFiles shinyFilesButton shinyFileChoose
+#' @importFrom plotly plotlyOutput renderPlotly
+#' @importFrom DT dataTableOutput renderDataTable
+#' @importFrom readxl read_excel excel_sheets read_xlsx
+#' @importFrom writexl write_xlsx
+#' @importFrom dplyr %>% filter select mutate
+#' @importFrom AnnotationHub AnnotationHub
+#' @importFrom SummarizedExperiment SummarizedExperiment
+#' @importFrom VariantAnnotation readVcf
+#' @importFrom shinyFiles getVolumes
+#' @importFrom Biostrings DNAStringSet reverseComplement
+#' @importFrom pepitope example_peptides example_fastq demux_fq count_bc plot_distr plot_reads plot_barcode_overlap
+#' @importFrom R6 R6Class
+#'
+#' @return An R6 object of class RustPipeline
+#' @export
 RustPipeline <- R6Class("RustPipeline",
   public = list(
 
-    rv = reactiveValues(all_constructs = NULL),    
-    selected_sheets = reactiveVal(NULL),
+    #' @field rv Reactive values container for internal state.
+    rv = NULL,
+    #' @field selected_sheets Reactive value storing user-selected Excel sheets.
+    selected_sheets = NULL,
+    #' @field test_mode_2 Logical flag to toggle test mode (default FALSE).
     test_mode_2 = FALSE,
+    #' @field lib Character URL of barcode library file.
     lib = NULL,
+    #' @field valid_barcodes Character vector of valid barcode strings.
     valid_barcodes = NULL,
+    #' @field reverse_flags Reactive value storing flags for reverse complement processing.
+    reverse_flags = NULL,
 
+    #' Initialize RustPipeline object
+    #'
+    #' @param test_mode_2 Logical, optional. Whether to activate test mode. Default is FALSE.
+    #' @return An initialized RustPipeline object.
     initialize = function(test_mode_2 = FALSE){
-      self$rv <- reactiveValues()
+      self$rv <- shiny::reactiveValues(all_constructs = NULL)
       self$test_mode_2 <- test_mode_2
       self$lib <- "https://raw.githubusercontent.com/hawkjo/freebarcodes/master/barcodes/barcodes12-1.txt"
       self$valid_barcodes <- readr::read_tsv(self$lib, col_names=FALSE)$X1
+      self$selected_sheets <- shiny::reactiveVal()
+      self$reverse_flags <- shiny::reactiveVal()
     },
-        
+    
+    #' Prepare peptide table from Excel files
+    #'
+    #' Reads Excel files and extracts all sheets as data frames.
+    #'
+    #' @param peptide_table_paths Character vector of file paths to Excel files.
+    #' @return A named list of data frames with each sheet's content.
     prepare_peptide_table = function(peptide_table_paths) {
 
       # Create a named list of data frames from each Excel file, using sheet names
@@ -79,51 +105,59 @@ RustPipeline <- R6Class("RustPipeline",
       return(all_constructs)
     }, 
 
+    #' UI method placeholder
+    #'
+    #' @param ... Parameters passed to UI function (if any).
     ui = function() {
       tabPanel("Quality control",
         sidebarLayout(
           sidebarPanel(
             width = 3,
             useShinyjs(),  
-            actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
-            checkboxInput("use_test_data_2", "Use test data", value = FALSE),
-            tags$h4("1. Peptide-table-section"),
-            checkboxGroupInput("selected_tables", "", choices = NULL), 
-            fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
-            div(id= "show_edit_sheets", style = "display: none;",
+            shiny::actionButton("help_btn_2", "Upload info ℹ️", title = "Need help for what to upload?"),
+            shiny::checkboxInput("use_test_data_2", "Use test data", value = FALSE),
+            shiny::tags$h4("1. Peptide-table-section"),
+            shiny::checkboxGroupInput("selected_tables", "", choices = NULL), 
+            shiny::fileInput("peptide_table", "Please select one or more peptide_table.xlsx files", multiple = TRUE, accept = c(".xlsx")),
+            shiny::div(id= "show_edit_sheets", style = "display: none;",
               actionButton("edit_sheets", "Edit sheet selection and reverse complement"),
             ),
-            tags$h4("2. Metadata-section"),
-            fileInput("samples_tsv", "Please select the samples.tsv file"),
-            tags$h4("3. Fastq-section"),        
+            shiny::tags$h4("2. Metadata-section"),
+            shiny::fileInput("samples_tsv", "Please select the samples.tsv file"),
+            shiny::tags$h4("3. Fastq-section"),        
             shinyFilesButton("fastq_file", "Select FASTQ File", "Please select a FASTQ file", multiple = FALSE, accept = c(".fastq.gz", ".fastq")),
-            verbatimTextOutput("fastq_file_path"),
-            textInput("read_structures", "Read Structures", value = "7B+T"),
-            tags$hr(),
-            actionButton("run_pipeline", "Run Pipeline"),
+            shiny::verbatimTextOutput("fastq_file_path"),
+            shiny::textInput("read_structures", "Read Structures", value = "7B+T"),
+            shiny::tags$hr(),
+            shiny::actionButton("run_pipeline", "Run Pipeline"),
            
-            div(id= "export_metrics", style = "display: none;",
-              downloadButton("download_new_peptide_table", "Download Results: all-metrics.xlsx"),
+            shiny::div(id= "export_metrics", style = "display: none;",
+              shiny::downloadButton("download_new_peptide_table", "Download Results: all-metrics.xlsx"),
             ),
-            verbatimTextOutput("status_2")
+            shiny::verbatimTextOutput("status_2")
           ),
           mainPanel(
             width = 9,
               tabsetPanel(
-                tabPanel("Barcode overlap", plotOutput("subplot_barcodes")),    
-                tabPanel("Sample Metadata", tableOutput("sample_meta_data")),
-                tabPanel("Construct Metadata", tableOutput("construct_meta_data")),
-                tabPanel("Construct Counts", h4("Top 50 Constructs (based on total counts)"), tableOutput("construct_counts")),
-                tabPanel("Fqtk: Metrics", tableOutput("fqtk_metrics_df")),
-                tabPanel("Read counts", plotlyOutput("subplot_plot_1")),
-                tabPanel("Barcode Reads", plotlyOutput("subplot_plot_2")),
-                tabPanel("Barcode distribution", plotlyOutput("subplot_plot_3"))
+                tabPanel("Barcode overlap", shiny::plotOutput("subplot_barcodes")),    
+                tabPanel("Sample Metadata", shiny::tableOutput("sample_meta_data")),
+                tabPanel("Construct Metadata", shiny::tableOutput("construct_meta_data")),
+                tabPanel("Construct Counts", shiny::h4("Top 50 Constructs (based on total counts)"), shiny::tableOutput("construct_counts")),
+                tabPanel("Fqtk: Metrics", shiny::tableOutput("fqtk_metrics_df")),
+                tabPanel("Read counts", plotly::plotlyOutput("subplot_plot_1")),
+                tabPanel("Barcode Reads", plotly::plotlyOutput("subplot_plot_2")),
+                tabPanel("Barcode distribution", plotly::plotlyOutput("subplot_plot_3"))
             ),
           )
         )
       )
     },
 
+    #' Server logic placeholder
+    #'
+    #' @param input Shiny input object.
+    #' @param output Shiny output object.
+    #' @param session Shiny session object.
     server = function(input, output, session) {
 
       observeEvent(input$help_btn_2, {
@@ -253,7 +287,7 @@ RustPipeline <- R6Class("RustPipeline",
 
       # 2. Step: Fastq-handling
       ## This registers the input
-      volumes = getVolumes()
+      volumes = shinyFiles::getVolumes()
       shinyFiles::shinyFileChoose(input, "fastq_file",  roots = volumes, filetypes = c("gz"))
 
       fastq_file_path <- reactive({
@@ -283,8 +317,7 @@ RustPipeline <- R6Class("RustPipeline",
       })
 
       # 3. Step: Peptide-handling
-      selected_sheets <- reactiveVal()
-      reverse_flags <- reactiveVal(list())
+
 
       # 3.1. get Path
       peptide_table_path <- reactive({
@@ -325,28 +358,28 @@ RustPipeline <- R6Class("RustPipeline",
         req(self$rv$all_constructs)
         sheet_names <- names(self$rv$all_constructs)
 
-        current_selection <- selected_sheets() %||% sheet_names
+        current_selection <- self$selected_sheets() %||% sheet_names
 
         showModal(modalDialog(
           title = "Edit Sheets and Reverse Complement",
           tagList(
-            tags$h4("1. Select Sheets to Use"),
-            checkboxGroupInput("modal_selected_sheets", NULL, 
+            shiny::tags$h4("1. Select Sheets to Use"),
+            shiny::checkboxGroupInput("modal_selected_sheets", NULL, 
                               choices = sheet_names, 
                               selected = current_selection),
             
-            tags$hr(),
-            tags$h4("2. Reverse Complement Options"),
-            div(
+            shiny::tags$hr(),
+            shiny::tags$h4("2. Reverse Complement Options"),
+            shiny::div(
               lapply(sheet_names, function(sheet) {
-                checkboxInput(paste0("rev_", sheet), paste("Reverse Complement for", sheet), 
-                              value = reverse_flags()[[sheet]] %||% FALSE)
+                shiny::checkboxInput(paste0("rev_", sheet), paste("Reverse Complement for", sheet), 
+                              value = self$reverse_flags()[[sheet]] %||% FALSE)
               })
             )
           ),
           footer = tagList(
-            modalButton("Cancel"),
-            actionButton("confirm_edit_sheets", "Apply Selections")
+            shiny::modalButton("Cancel"),
+            shiny::actionButton("confirm_edit_sheets", "Apply Selections")
           ),
           size = "l",
           easyClose = FALSE
@@ -359,18 +392,18 @@ RustPipeline <- R6Class("RustPipeline",
       # 3.2. 
       observeEvent(input$confirm_edit_sheets, {
         req(input$modal_selected_sheets)
-        removeModal() 
+        shiny::removeModal() 
         # Delete pre-selection from default etc. to mitigate side effects
         self$rv$selected_constructs <- NULL
  
         sel <- input$modal_selected_sheets
-        selected_sheets(sel) 
+        self$selected_sheets(sel) 
 
         rf <- list()
         for (sheet in names(self$rv$all_constructs)) {
           rf[[sheet]] <- input[[paste0("rev_", sheet)]] %||% FALSE
         }
-        reverse_flags(rf)
+        self$reverse_flags(rf)
 
         # Re-apply rev-comp and subset constructs
         processed <- list()
@@ -391,7 +424,7 @@ RustPipeline <- R6Class("RustPipeline",
           # Apply reverse complement if flagged
           if (rf[[sheet]]) {
             for (bc_col in barcode_cols) {
-              df[[bc_col]] <- as.character(reverseComplement(DNAStringSet(as.character(df[[bc_col]]))))
+              df[[bc_col]] <- as.character(Biostrings::reverseComplement(Biostrings::DNAStringSet(as.character(df[[bc_col]]))))
             }
           }
 
@@ -589,7 +622,7 @@ RustPipeline <- R6Class("RustPipeline",
         # assay(dset) – access the construct counts as matrix
         # Step 2: Display fqtk metrics
         output$sample_meta_data <- renderTable({
-          colData(dset)
+          SummarizedExperiment::colData(dset)
         })
         runjs("document.getElementById('status_2').innerText = 'Step 3/10 - Display demux metrics...';")
 
@@ -599,13 +632,13 @@ RustPipeline <- R6Class("RustPipeline",
 
 
         output$construct_meta_data <- renderTable({
-          construct_meta_data <- rowData(dset)
+          construct_meta_data <- SummarizedExperiment::rowData(dset)
           head(construct_meta_data, 50)
         })
 
 
         output$construct_counts <- renderTable({
-          df <- as.data.frame(assay(dset))
+          df <- as.data.frame(SummarizedExperiment::assay(dset))
           df$Total <- rowSums(df)  # assuming numeric values
           df <- df[order(-df$Total), ]  # descending sort
           df <- tibble::rownames_to_column(df, var = "barcode")
@@ -634,19 +667,19 @@ RustPipeline <- R6Class("RustPipeline",
         plot = pepitope::plot_reads(dset)
 
         output$subplot_plot_1 <- renderPlotly({
-          subplot(ggplotly(plot[[1]], height=300), ggplotly(plot[[2]], height=300), nrows=1)
+          plotly::subplot(plotly::ggplotly(plot[[1]], height=300), plotly::ggplotly(plot[[2]], height=300), nrows=1)
         })
         runjs("document.getElementById('status_2').innerText = 'Step 7/10 - Subplot_plot_1 done';")
 
         output$subplot_plot_2 <- renderPlotly({
-          subplot(ggplotly(plot[[3]], height=300), ggplotly(plot[[4]], height=300), nrows=1)
+          plotly::subplot(plotly::ggplotly(plot[[3]], height=300), plotly::ggplotly(plot[[4]], height=300), nrows=1)
         })
 
 
         runjs("document.getElementById('status_2').innerText = 'Step 9/10 - Subplot_plot_2 done';")
 
         output$subplot_plot_3 <- renderPlotly({
-          ggplotly(pepitope::plot_distr(dset), height=500, tooltip="text")
+          plotly::ggplotly(pepitope::plot_distr(dset), height=500, tooltip="text")
         })
         runjs("document.getElementById('status_2').innerText = 'Step 10/10 - Subplot_plot_3 done';")
 
@@ -662,13 +695,13 @@ RustPipeline <- R6Class("RustPipeline",
           },
           content = function(file) {
             # 1. Export Sample Metadata (colData)
-            sample_metadata <- as.data.frame(colData(dset))
+            sample_metadata <- as.data.frame(SummarizedExperiment::colData(dset))
 
             # 2. Export Construct Metadata (rowData)
-            construct_metadata <- as.data.frame(rowData(dset))
+            construct_metadata <- as.data.frame(SummarizedExperiment::rowData(dset))
 
             # 3. Export Construct Counts (assay)
-            construct_counts <- as.data.frame(assay(dset))
+            construct_counts <- as.data.frame(SummarizedExperiment::assay(dset))
       
             # Include row names in the Construct Counts data
             construct_counts <- tibble::rownames_to_column(construct_counts, var = "barcode")
@@ -696,4 +729,4 @@ server <- function(input, output, session) {
   rust_pipeline$server(input, output, session)
 }
 
-shinyApp(ui, server)
+shiny::shinyApp(ui, server)

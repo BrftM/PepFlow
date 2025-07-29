@@ -1,23 +1,45 @@
-library(R6)
-library(shiny)
-library(pepitope)
-library(AnnotationHub)
-library(writexl)
-library(VariantAnnotation)
-
-library(DT)
-library(shinyjs)
-
+#' VariantProcessor Class
+#'
+#' This class handles the annotation of mutated regions from VCF files.
+#' It processes VCF input files, annotates variants, generates peptide tables,
+#' and manages the Shiny UI and server logic for interaction.
+#'
+#' @importFrom R6 R6Class
+#' @importFrom shinyjs useShinyjs runjs
+#' @importFrom shiny reactiveValues renderUI renderText observeEvent req showModal modalDialog NS textAreaInput actionButton downloadButton verbatimTextOutput fileInput checkboxInput selectInput updateSelectInput updateCheckboxInput
+#' @importFrom shinyalert shinyalert
+#' @importFrom DT datatable renderDT DTOutput
+#' @importFrom AnnotationHub AnnotationHub
+#' @importFrom GenomeInfoDb seqlevelsStyle
+#' @importFrom writexl write_xlsx
+#' @importFrom SummarizedExperiment SummarizedExperiment
+#' @importFrom pepitope filter_variants readVcfAsVRanges annotate_coding subset_context make_peptides pep_tile remove_cutsite make_report
+#' 
+#' @param dataHandling An object managing external data dependencies required by VariantProcessor.
+#' @param test_mode_1 Logical, default FALSE. If TRUE, uses built-in test VCF data instead of user input.
+#'
+#' @return An R6 object of class \code{VariantProcessor}.
+#'
+#' @export
 VariantProcessor <- R6Class("VariantProcessor",
   public = list(
+    #' @field ens106 AnnotationHub object for Ensembl 106 genome annotations.
     ens106 = NULL,
+    #' @field asm BSgenome object for genome assembly reference (e.g., hg38).
     asm = NULL,
+    #' @field rv Reactive values container for internal state.
     rv = NULL,
+    #' @field test_mode_1 Logical flag to toggle test mode (default FALSE).
     test_mode_1 = FALSE,
-
+    #' @field rv_sheet ReactiveValues object holding sheet and table data.
     rv_sheet = reactiveValues(sheet_data = NULL, table_data = NULL),
-    dataHandling = NULL,  
+    #' @field dataHandling Object handling data input/output operations.
+    dataHandling = NULL,
 
+    #' Initialize VariantProcessor
+    #'
+    #' @param dataHandling External data handler object.
+    #' @param test_mode_1 Logical, whether to use test data. Default FALSE.
     initialize = function(dataHandling, test_mode_1 = FALSE) {
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
@@ -29,6 +51,10 @@ VariantProcessor <- R6Class("VariantProcessor",
       self$test_mode_1 <- test_mode_1
     },
 
+    #' Process VCF file to generate peptide annotation report
+    #'
+    #' @param vcf_file Character path to VCF file. Default NULL for test data.
+    #' @param sample_selected Character sample name from VCF to process. Default NULL.
     process_vcf = function(vcf_file = NULL, sample_selected = NULL) {
       runjs("document.getElementById('status_1').innerText = 'Step 2/8 - Read VCF as VRanges...';")
 
@@ -116,7 +142,10 @@ VariantProcessor <- R6Class("VariantProcessor",
       )
     },
 
-
+    #' Display the annotated peptide tables with optional barcode input
+    #'
+    #' @param output Shiny output object.
+    #' @param input Shiny input object.
     display_table = function(output, input) {
       runjs("document.getElementById('status_1').innerText = 'Step 7/8 - Add barcodes or download';")
       
@@ -198,7 +227,10 @@ VariantProcessor <- R6Class("VariantProcessor",
       })
       shinyjs::show("barcode_export")
     },
-
+    
+    #' UI method placeholder
+    #'
+    #' @param ... Parameters passed to UI function (if any).
     ui = function() {
       tabPanel(" Variant calling",
         sidebarLayout(
@@ -221,7 +253,10 @@ VariantProcessor <- R6Class("VariantProcessor",
         )
       )
     },
-
+    #' Server-side logic for variant calling workflow
+    #'
+    #' @param input Shiny input object.
+    #' @param output Shiny output object.
     server = function(input, output) {
       output$status_1 <- renderText({ "Waiting for input..." })
 
