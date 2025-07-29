@@ -20,6 +20,7 @@
 #' @param output Shiny output object.
 #'
 #' @return An R6 object of class DifferentialExpression.
+#' @export
 DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
