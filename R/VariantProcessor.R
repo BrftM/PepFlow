@@ -15,7 +15,6 @@
 #' @importFrom SummarizedExperiment SummarizedExperiment
 #' @importFrom pepitope filter_variants readVcfAsVRanges annotate_coding subset_context make_peptides pep_tile remove_cutsite make_report
 #' 
-#' @param dataHandling An object managing external data dependencies required by VariantProcessor.
 #' @param test_mode_1 Logical, default FALSE. If TRUE, uses built-in test VCF data instead of user input.
 #'
 #' @return An R6 object of class \code{VariantProcessor}.
@@ -33,21 +32,16 @@ VariantProcessor <- R6Class("VariantProcessor",
     test_mode_1 = FALSE,
     #' @field rv_sheet ReactiveValues object holding sheet and table data.
     rv_sheet = reactiveValues(sheet_data = NULL, table_data = NULL),
-    #' @field dataHandling Object handling data input/output operations.
-    dataHandling = NULL,
 
     #' Initialize VariantProcessor
     #'
-    #' @param dataHandling External data handler object.
     #' @param test_mode_1 Logical, whether to use test data. Default FALSE.
-    initialize = function(dataHandling, test_mode_1 = FALSE) {
+    initialize = function(test_mode_1 = FALSE) {
       self$ens106 <- AnnotationHub::AnnotationHub()[["AH100643"]]
       seqlevelsStyle(self$ens106) <- "UCSC"
       self$asm <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
       self$asm@seqinfo@genome[] <- "GRCh38"
       self$rv <- reactiveValues(report_data = list())
-      
-      self$dataHandling <- dataHandling
       self$test_mode_1 <- test_mode_1
     },
 

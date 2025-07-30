@@ -3,17 +3,10 @@ library(PepFlow)
 # Create an instance of Classes
 rustPipeline <- RustPipeline$new()
 
-# Initialize shared helper classes
-dataHandling <- DataHandling$new()
-
 # Initialize and pass helpers in the constructor 
-differentialExpression <- DifferentialExpression$new(
-  dataHandling = dataHandling
-)
+differentialExpression <- DifferentialExpression$new()
 
-variantProcessor <- VariantProcessor$new(
-  dataHandling = dataHandling
-)
+variantProcessor <- VariantProcessor$new()
 
 # Define UI ----
 ui <- fluidPage(
@@ -30,7 +23,6 @@ server <- function(input, output, session) {
   variantProcessor$server(input, output)
   rustPipeline$server(input, output)
   differentialExpression$server(input, output)
-  dataHandling$server(input, output)
 }
 
 # Run the app ----

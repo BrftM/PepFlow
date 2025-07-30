@@ -12,10 +12,9 @@
 #' @importFrom ggplot2 ggplot aes geom_point theme
 #' @importFrom shinyjs useShinyjs runjs
 #' 
-#' @field dataHandling An object of class DataHandling used to manage data input.
+
 #' @field test_mode_3 Logical flag for test mode.
 #'
-#' @param dataHandling An instance of DataHandling class.
 #' @param input Shiny input object.
 #' @param output Shiny output object.
 #'
@@ -24,13 +23,43 @@
 DifferentialExpression <- R6Class("DifferentialExpression",
     public = list(
 
-    dataHandling = NULL,
     test_mode_3 = FALSE,
     
-    #' @param dataHandling An instance of DataHandling class.
-    initialize = function(dataHandling) {
-    self$dataHandling <- dataHandling
+    #' Initialize DifferentialExpression
+    #'
+    #' @param test_mode_3 Logical, whether to use test data. Default FALSE.
+    initialize = function(test_mode_3 =NULL) {
+        self$test_mode_3 <- test_mode_3
     },
+
+    #' Transform Excel file into SummarizedExperiment
+    #'
+    #' Reads an Excel file with sheets "Samples", "Construct_Metadata", and "Construct_Counts" and
+    #' converts it into a SummarizedExperiment object.
+    #'
+    #' @param table_path Character string. Path to the Excel file.
+    #' @return A SummarizedExperiment object containing assays (counts), colData (samples), and rowData (construct metadata).
+    transform_xlsx = function(table_path) {
+        
+        samples_df <- readxl::read_excel(table_path, sheet = "Samples", col_types = "text")
+
+        construct_metadata_df <- readxl::read_excel(table_path, sheet = "Construct_Metadata", col_types = "text")
+        
+        counts_df <- readxl::read_excel(table_path, sheet = "Construct_Counts")
+
+        # Drops the first column, retaining only numeric/count data.
+        counts_matrix <- as.matrix(counts_df[, -1])
+        # Accesses the first column of counts_df as a vector to get barcodes
+        rownames(counts_matrix) <- counts_df[[1]]
+
+        dset <- SummarizedExperiment(
+            assays = list(counts = counts_matrix),
+            colData = samples_df,
+            rowData = construct_metadata_df
+        )
+        return(dset)
+    },
+
     
     #' Run differential expression analysis
     #'
@@ -260,7 +289,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                     runjs("document.getElementById('status_4').innerText = 'Step 0/10 - Loading test data completed';")
                 } else {
                     req(final_peptide_table_path_1()) 
-                    dset <- self$dataHandling$transform_xlsx(final_peptide_table_path_1())
+                    dset <- self$transform_xlsx(final_peptide_table_path_1())
                 }
                 dset 
                 }, error = function(e) {

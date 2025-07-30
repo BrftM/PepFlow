@@ -15,7 +15,6 @@
 #' @importFrom DT dataTableOutput renderDataTable
 #' @importFrom readxl read_excel excel_sheets read_xlsx
 #' @importFrom writexl write_xlsx
-#' @importFrom dplyr %>% filter select mutate
 #' @importFrom AnnotationHub AnnotationHub
 #' @importFrom SummarizedExperiment SummarizedExperiment
 #' @importFrom VariantAnnotation readVcf
