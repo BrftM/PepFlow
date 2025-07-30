@@ -15,9 +15,7 @@
 #' @importFrom DT dataTableOutput renderDataTable
 #' @importFrom readxl read_excel excel_sheets read_xlsx
 #' @importFrom writexl write_xlsx
-#' @importFrom AnnotationHub AnnotationHub
 #' @importFrom SummarizedExperiment SummarizedExperiment
-#' @importFrom VariantAnnotation readVcf
 #' @importFrom shinyFiles getVolumes
 #' @importFrom Biostrings DNAStringSet reverseComplement
 #' @importFrom pepitope example_peptides example_fastq demux_fq count_bc plot_distr plot_reads plot_barcode_overlap

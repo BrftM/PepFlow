@@ -10,9 +10,7 @@
 #' @importFrom shinyalert shinyalert
 #' @importFrom DT datatable renderDT DTOutput
 #' @importFrom AnnotationHub AnnotationHub
-#' @importFrom GenomeInfoDb seqlevelsStyle
 #' @importFrom writexl write_xlsx
-#' @importFrom SummarizedExperiment SummarizedExperiment
 #' @importFrom pepitope filter_variants readVcfAsVRanges annotate_coding subset_context make_peptides pep_tile remove_cutsite make_report
 #' 
 #' @param test_mode_1 Logical, default FALSE. If TRUE, uses built-in test VCF data instead of user input.
