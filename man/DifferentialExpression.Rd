@@ -12,8 +12,6 @@ This class handles differential expression analysis.
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
-\item{\code{dataHandling}}{An object of class DataHandling used to manage data input.}
-
 \item{\code{test_mode_3}}{Logical flag for test mode.}
 }
 \if{html}{\out{</div>}}
@@ -22,6 +20,7 @@ This class handles differential expression analysis.
 \subsection{Public methods}{
 \itemize{
 \item \href{#method-DifferentialExpression-new}{\code{DifferentialExpression$new()}}
+\item \href{#method-DifferentialExpression-transform_xlsx}{\code{DifferentialExpression$transform_xlsx()}}
 \item \href{#method-DifferentialExpression-run_differential_expression}{\code{DifferentialExpression$run_differential_expression()}}
 \item \href{#method-DifferentialExpression-ui}{\code{DifferentialExpression$ui()}}
 \item \href{#method-DifferentialExpression-server}{\code{DifferentialExpression$server()}}
@@ -33,16 +32,39 @@ This class handles differential expression analysis.
 \if{latex}{\out{\hypertarget{method-DifferentialExpression-new}{}}}
 \subsection{Method \code{new()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DifferentialExpression$new(dataHandling)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{DifferentialExpression$new(test_mode_3 = NULL)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{dataHandling}}{An instance of DataHandling class.
-Run differential expression analysis}
+\item{\code{test_mode_3}}{Logical, whether to use test data. Default FALSE.
+Transform Excel file into SummarizedExperiment
+
+Reads an Excel file with sheets "Samples", "Construct_Metadata", and "Construct_Counts" and
+converts it into a SummarizedExperiment object.}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DifferentialExpression-transform_xlsx"></a>}}
+\if{latex}{\out{\hypertarget{method-DifferentialExpression-transform_xlsx}{}}}
+\subsection{Method \code{transform_xlsx()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{DifferentialExpression$transform_xlsx(table_path)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{table_path}}{Character string. Path to the Excel file.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A SummarizedExperiment object containing assays (counts), colData (samples), and rowData (construct metadata).
+Run differential expression analysis
 }
 }
 \if{html}{\out{<hr>}}

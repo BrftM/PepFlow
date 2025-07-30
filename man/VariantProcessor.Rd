@@ -22,9 +22,7 @@ and manages the Shiny UI and server logic for interaction.
 
 \item{\code{test_mode_1}}{Logical flag to toggle test mode (default FALSE).}
 
-\item{\code{rv_sheet}}{ReactiveValues object holding sheet and table data.}
-
-\item{\code{dataHandling}}{Object handling data input/output operations.
+\item{\code{rv_sheet}}{ReactiveValues object holding sheet and table data.
 Initialize VariantProcessor}
 }
 \if{html}{\out{</div>}}
@@ -45,14 +43,12 @@ Initialize VariantProcessor}
 \if{latex}{\out{\hypertarget{method-VariantProcessor-new}{}}}
 \subsection{Method \code{new()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{VariantProcessor$new(dataHandling, test_mode_1 = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{VariantProcessor$new(test_mode_1 = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{dataHandling}}{External data handler object.}
-
 \item{\code{test_mode_1}}{Logical, whether to use test data. Default FALSE.
 Process VCF file to generate peptide annotation report}
 }

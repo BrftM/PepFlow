@@ -28,7 +28,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
     #' Initialize DifferentialExpression
     #'
     #' @param test_mode_3 Logical, whether to use test data. Default FALSE.
-    initialize = function(test_mode_3 =NULL) {
+    initialize = function(test_mode_3 = NULL) {
         self$test_mode_3 <- test_mode_3
     },
 
