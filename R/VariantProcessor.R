@@ -65,13 +65,9 @@ VariantProcessor <- R6Class("VariantProcessor",
         vr1
       }, error = function(e) {
         shinyalert("Error reading VCF or filtering variants", e$message, type = "error")
-        return(NULL)
       })
 
-      if (is.null(vr1) || length(vr1) == 0) {
-        shinyalert("No variants read", "No variants found for the selected sample.", type = "error")
-        return()
-      }
+      if (is.null(vr1) || length(vr1) == 0) return()
 
       runjs("document.getElementById('status_1').innerText = 'Step 3/8 - Annotate coding and Subset context...';")
 
@@ -85,7 +81,6 @@ VariantProcessor <- R6Class("VariantProcessor",
         ann
       }, error = function(e) {
         shinyalert("Annotation error", e$message, type = "error")
-        return(NULL)
       })
 
       if (is.null(ann) || length(ann) == 0) return()
@@ -97,13 +92,7 @@ VariantProcessor <- R6Class("VariantProcessor",
 
       }, error = function(e) {
         shinyalert("Subset context error", e$message, type = "error")
-        return(NULL)
       })
-
-      if (is.null(subs)) {
-        warning("Subset context failed. Halting downstream processing.")
-        return()
-      }
 
       runjs("document.getElementById('status_1').innerText = 'Step 4/8 - Tiling cDNAs...';")
 
@@ -114,7 +103,6 @@ VariantProcessor <- R6Class("VariantProcessor",
           pepitope::remove_cutsite(BbsI = "GAAGAC")
       }, error = function(e) {
         shinyalert("Tiling error", e$message, type = "error")
-        return(NULL)
       })
 
       if (is.null(tiled)) return()
@@ -126,7 +114,6 @@ VariantProcessor <- R6Class("VariantProcessor",
         pepitope::make_report(vars = ann, subs = subs, tiled = tiled)
       }, error = function(e) {
         shinyalert("Report generation error", e$message, type = "error")
-        return(NULL)
       })
 
       shinyalert(
@@ -202,7 +189,6 @@ VariantProcessor <- R6Class("VariantProcessor",
                   nrow(df)
                 )
                 runjs(sprintf("document.getElementById('status_1').innerText = '%s';", error_msg))
-                return()
               }
 
               df$barcode <- barcode_list
@@ -286,7 +272,6 @@ VariantProcessor <- R6Class("VariantProcessor",
               type = "warning"
             )
             runjs("document.getElementById('status_1').innerText = 'Waiting for input...';")
-            return()
           }
 
         runjs("document.getElementById('status_1').innerText = 'Step 1/8 - Processing VCF file...';")

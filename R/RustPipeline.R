@@ -73,10 +73,9 @@ RustPipeline <- R6Class("RustPipeline",
             text = paste("Error reading sheets from peptide file: ", paste(path, collapse = ", ")),
             type = "error"
           )
-          return(NULL)
         })
         
-        if (is.null(sheet_names)) return(NULL)
+        if (is.null(sheet_names)) return()
 
         # Read each sheet and store in a named list
         sheets_data <- lapply(sheet_names, function(sheet) {
@@ -89,7 +88,6 @@ RustPipeline <- R6Class("RustPipeline",
               text = paste("Error reading sheet: ", paste(sheet, collapse = ", ")),
               type = "error"
           )
-            return(NULL)
           })
         })
         
@@ -268,7 +266,6 @@ RustPipeline <- R6Class("RustPipeline",
             text = paste("Could not read samples.tsv:", e$message),
             type = "error"
           )
-          return(NULL)
         })
 
         required_columns <- c("sample_id", "patient", "rep", "origin", "barcode")
@@ -417,7 +414,6 @@ RustPipeline <- R6Class("RustPipeline",
               text = paste0("Sheet '", sheet, "' must contain at least one column named 'barcode' or 'barcode_1', 'barcode_2', etc."),
               type = "error"
             )
-            return(NULL)
           }
 
           # Apply reverse complement if flagged
@@ -494,8 +490,6 @@ RustPipeline <- R6Class("RustPipeline",
                 type = "error"
               )
               runjs("document.getElementById('status_2').innerText = 'Error: Test data loading failed.';")
-
-              return() 
             })
           } else {
             self$test_mode_2 <- FALSE
@@ -507,7 +501,6 @@ RustPipeline <- R6Class("RustPipeline",
                 type = "warning"
               )
               runjs("document.getElementById('status_2').innerText = 'Waiting for input...';")
-              return()
             }
 
             # Step 1: Read sample sheet
@@ -581,7 +574,6 @@ RustPipeline <- R6Class("RustPipeline",
             type = "error"
           )
           runjs("document.getElementById('status_2').innerText = 'Error during demultiplexing.';")
-          return(NULL)
         })
 
         # Stop if demuxing failed
@@ -609,7 +601,6 @@ RustPipeline <- R6Class("RustPipeline",
             type = "error"
           )
           runjs("document.getElementById('status_2').innerText = 'Error during barcode counting.';")
-          return(NULL)
         })
 
         # Stop if counting failed

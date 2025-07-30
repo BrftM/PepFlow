@@ -82,7 +82,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 text = paste("An error occurred:", e$message),
                 type = "error"
             )
-        return(NULL)
         })
         
         runjs("document.getElementById('status_4').innerText = 'Step 4/9 - Export 3-screen.pdf...';")
@@ -166,8 +165,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 # Clear the UI selections (in case there are any selections made)
                 updateSelectInput(inputId = "ref_group", choices = NULL)
                 updateSelectInput(inputId = "comp_group", choices = NULL)
-
-                return(NULL) 
             }
 
             samples_df <- as.data.frame(
@@ -184,10 +181,7 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                         text = paste("Error missing distinct groups in 'origin' only one available: ", paste(origins, collapse = ", ")),
                         type = "error"
                 )
-                runjs("document.getElementById('status_4').innerText = 'Need at least two distinct groups in origin or short to compare.';")
-            
-                return(NULL)
-            
+                runjs("document.getElementById('status_4').innerText = 'Need at least two distinct groups in origin or short to compare.';")            
             } else {
                 updateSelectInput(inputId = "ref_group", choices = origins, selected = origins[1])
                 updateSelectInput(inputId = "comp_group", choices = origins, selected = origins[2])
@@ -263,7 +257,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 type = "warning"
                 )
                 runjs("document.getElementById('status_4').innerText = 'Waiting for input...';")
-                return()
             }
             runjs("document.getElementById('status_4').innerText = 'Step 0/9 - Setup Required data...';")
 
@@ -299,7 +292,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                     type = "error"
                 )
                 runjs("document.getElementById('status_4').innerText = 'Error: Failed to load input data.';")
-                return(NULL)
                 })
 
                 if (is.null(dset)) return(runjs("document.getElementById('status_4').innerText = 'Error: Dset is NUll.';"))
@@ -323,7 +315,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                 type = "error"
                 )
                 runjs("document.getElementById('status_4').innerText = 'Error: Failed to run differential expression.';")
-                return(NULL)
             })
 
             if (is.null(res_list$res)) return()
@@ -338,7 +329,6 @@ DifferentialExpression <- R6Class("DifferentialExpression",
                     text = paste("Could not generate plot:", e$message),
                     type = "error"
                 )
-            return(NULL)
             })
             if (is.null(plt)) return()
 
